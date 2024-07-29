@@ -48,10 +48,5 @@ func (vc *ValidationContext) AggregateError() error {
 	if !vc.HasErrors() {
 		return nil
 	}
-	var sb strings.Builder
-	sb.WriteString("Validation errors:\n")
-	for _, err := range vc.Errors() {
-		sb.WriteString(fmt.Sprintf("Field: %s, Error: %s\n", err.Field, err.Message))
-	}
-	return fmt.Errorf(sb.String())
+	return fmt.Errorf(vc.FormatErrors())
 }
