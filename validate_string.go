@@ -1,36 +1,43 @@
 package validationcontext
 
 import (
+	"fmt"
+	"os"
 	"regexp"
 	"unicode"
+	"unicode/utf8"
+
+	"github.com/google/uuid"
 )
 
-// ValidateRequired checks if the value is not empty.
-func (vc *ValidationContext) ValidateRequired(value, field, errMsg string) {
-	if value == "" {
-		vc.AddError(field, errMsg)
-	}
-}
-
 // ValidateMinLength checks if the value has at least minLen characters.
-func (vc *ValidationContext) ValidateMinLength(value, field string, minLen int, errMsg string) {
-	if len(value) < minLen {
-		vc.AddError(field, errMsg)
+func (vc *ValidationContext) ValidateMinLength(value string, field string, min int, errMsg string) {
+	if utf8.RuneCountInString(value) < min {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+		}
+		vc.AddError(field, fmt.Sprintf("%sは%d文字以上で入力してください。", field, min))
 	}
 }
 
 // ValidateMaxLength checks if the value has at most maxLen characters.
-func (vc *ValidationContext) ValidateMaxLength(value, field string, maxLen int, errMsg string) {
-	if len(value) > maxLen {
-		vc.AddError(field, errMsg)
+func (vc *ValidationContext) ValidateMaxLength(value string, field string, max int, errMsg string) {
+	if utf8.RuneCountInString(value) > max {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+		}
+		vc.AddError(field, fmt.Sprintf("%sは%d文字以内で入力してください。", field, max))
 	}
 }
 
-// ValidateEmailFormat checks if the value is a valid email format.
-func (vc *ValidationContext) ValidateEmailFormat(email, field, errMsg string) {
+// ValidateEmail checks if the value is a valid email format.
+func (vc *ValidationContext) ValidateEmail(value string, field string, errMsg string) {
 	re := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	if !re.MatchString(email) {
-		vc.AddError(field, errMsg)
+	if !re.MatchString(value) {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+		}
+		vc.AddError(field, fmt.Sprintf("%sには、有効なメールアドレスを指定してください。", field))
 	}
 }
 
@@ -43,8 +50,24 @@ func (vc *ValidationContext) ValidateContainsSpecial(value, field, errMsg string
 			break
 		}
 	}
-	if !hasSpecial {
+	if hasSpecial {
+		return
+	}
+	if errMsg != "" {
 		vc.AddError(field, errMsg)
+		return
+	}
+	vc.AddError(field, fmt.Sprintf("%sには、特殊文字を含めてください。", field))
+}
+
+func (vc *ValidationContext) ValidateContainsSpecialRegx(value, field, errMsg string) {
+	re := regexp.MustCompile(`[!@#~$%^&*(),.?":{}|<>]`)
+	if !re.MatchString(value) {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+			return
+		}
+		vc.AddError(field, fmt.Sprintf("%sには、特殊文字を含めてください。", field))
 	}
 }
 
@@ -57,35 +80,83 @@ func (vc *ValidationContext) ValidateContainsNumber(value, field, errMsg string)
 			break
 		}
 	}
-	if !hasNumber {
+	if hasNumber {
+		return
+	}
+	if errMsg != "" {
 		vc.AddError(field, errMsg)
+		return
+	}
+	vc.AddError(field, fmt.Sprintf("%sには、数字を含めてください。", field))
+}
+
+func (vc *ValidationContext) ValidateContainsNumberRegx(value, field, errMsg string) {
+	re := regexp.MustCompile(`[0-9]`)
+	if !re.MatchString(value) {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+			return
+		}
+		vc.AddError(field, fmt.Sprintf("%sには、数字を含めてください。", field))
 	}
 }
 
 // ValidateContainsUppercase checks if the value contains at least one uppercase letter.
 func (vc *ValidationContext) ValidateContainsUppercase(value, field, errMsg string) {
-	hasUpper := false
-	for _, char := range value {
-		if unicode.IsUpper(char) {
-			hasUpper = true
-			break
+	re := regexp.MustCompile(`[A-Z]`)
+	if !re.MatchString(value) {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+			return
 		}
-	}
-	if !hasUpper {
-		vc.AddError(field, errMsg)
+		vc.AddError(field, fmt.Sprintf("%sには、大文字の英字を含めてください。", field))
 	}
 }
 
 // ValidateContainsLowercase checks if the value contains at least one lowercase letter.
 func (vc *ValidationContext) ValidateContainsLowercase(value, field, errMsg string) {
-	hasLower := false
-	for _, char := range value {
-		if unicode.IsLower(char) {
-			hasLower = true
-			break
+	re := regexp.MustCompile(`[a-z]`)
+	if !re.MatchString(value) {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+			return
+		}
+		vc.AddError(field, fmt.Sprintf("%sには、小文字の英字を含めてください。", field))
+	}
+}
+
+// ValidateURL checks if the value is a valid URL.
+func (vc *ValidationContext) ValidateURL(value, field, errMsg string) {
+	re := regexp.MustCompile(`^(https?|ftp)://[^\s/$.?#].[^\s]*$`)
+	if !re.MatchString(value) {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+		} else {
+			vc.AddError(field, fmt.Sprintf("%sには、有効なURLを指定してください。", field))
 		}
 	}
-	if !hasLower {
-		vc.AddError(field, errMsg)
+}
+
+// ValidateFile checks if the value is a valid file path.
+func (vc *ValidationContext) ValidateFile(value, field, errMsg string) {
+	if _, err := os.Stat(value); err != nil {
+		if os.IsNotExist(err) {
+			if errMsg != "" {
+				vc.AddError(field, errMsg)
+				return
+			}
+			vc.AddError(field, fmt.Sprintf("%sには、有効なファイルパスを指定してください。", field))
+		}
+	}
+}
+
+// ValidateUUID checks if the value is a valid UUID.
+func (vc *ValidationContext) ValidateUUID(value, field, errMsg string) {
+	if _, err := uuid.Parse(value); err != nil {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+			return
+		}
+		vc.AddError(field, fmt.Sprintf("%sには、有効なUUIDを指定してください。", field))
 	}
 }

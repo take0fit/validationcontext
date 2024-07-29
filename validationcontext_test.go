@@ -1,6 +1,7 @@
 package validationcontext
 
 import (
+	"os"
 	"testing"
 )
 
@@ -85,29 +86,6 @@ func TestAggregateError(t *testing.T) {
 	}
 }
 
-func TestValidateRequired(t *testing.T) {
-	tests := []struct {
-		name      string
-		value     string
-		field     string
-		errMsg    string
-		wantError bool
-	}{
-		{"Required field missing", "", "RequiredField", "Required field is missing", true},
-		{"Required field present", "value", "RequiredField", "Required field is missing", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			vc := NewValidationContext()
-			vc.ValidateRequired(tt.value, tt.field, tt.errMsg)
-			if vc.HasErrors() != tt.wantError {
-				t.Errorf("ValidateRequired() = %v, want %v", vc.HasErrors(), tt.wantError)
-			}
-		})
-	}
-}
-
 func TestValidateMinLength(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -171,7 +149,7 @@ func TestValidateEmailFormat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
-			vc.ValidateEmailFormat(tt.email, tt.field, tt.errMsg)
+			vc.ValidateEmail(tt.email, tt.field, tt.errMsg)
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateEmailFormat() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
@@ -274,14 +252,14 @@ func TestValidateContainsLowercase(t *testing.T) {
 func TestValidateMinValue(t *testing.T) {
 	tests := []struct {
 		name      string
-		value     string
+		value     int
 		field     string
 		minValue  int
 		errMsg    string
 		wantError bool
 	}{
-		{"Value below min", "5", "MinValueField", 10, "Min value is 10", true},
-		{"Value above min", "15", "MinValueField", 10, "Min value is 10", false},
+		{"Value below min", 5, "MinValueField", 10, "Min value is 10", true},
+		{"Value above min", 15, "MinValueField", 10, "Min value is 10", false},
 	}
 
 	for _, tt := range tests {
@@ -298,14 +276,14 @@ func TestValidateMinValue(t *testing.T) {
 func TestValidateMaxValue(t *testing.T) {
 	tests := []struct {
 		name      string
-		value     string
+		value     int
 		field     string
 		maxValue  int
 		errMsg    string
 		wantError bool
 	}{
-		{"Value above max", "15", "MaxValueField", 10, "Max value is 10", true},
-		{"Value below max", "5", "MaxValueField", 10, "Max value is 10", false},
+		{"Value above max", 15, "MaxValueField", 10, "Max value is 10", true},
+		{"Value below max", 5, "MaxValueField", 10, "Max value is 10", false},
 	}
 
 	for _, tt := range tests {
@@ -314,6 +292,260 @@ func TestValidateMaxValue(t *testing.T) {
 			vc.ValidateMaxValue(tt.value, tt.field, tt.maxValue, tt.errMsg)
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateMaxValue() = %v, want %v", vc.HasErrors(), tt.wantError)
+			}
+		})
+	}
+}
+
+func TestValidateDate(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidDate", "2023-07-25", false},
+		{"InvalidDate", "2023-07-32", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateDate(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateYearMonth(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidYearMonth", "2023-07", false},
+		{"InvalidYearMonth", "2023-13", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateYearMonth(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateYear(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidYear", "2023", false},
+		{"InvalidYear", "20A3", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateYear(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateMonth(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidMonth", "07", false},
+		{"InvalidMonth", "13", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateMonth(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateDateTime(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidDateTime", "2023-07-25 15:04:05", false},
+		{"InvalidDateTime", "2023-07-25 25:04:05", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateDateTime(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateTime(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidTime", "15:04", false},
+		{"InvalidTime", "25:04", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateTime(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidURL", "https://www.example.com", false},
+		{"InvalidURL", "ht://www.example.com", true},
+		{"EmptyScheme", "www.example.com", true},
+		{"EmptyHost", "https://", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateURL(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateFile(t *testing.T) {
+	// テスト用の一時ファイルを作成
+	tmpFile, err := os.CreateTemp("", "testfile")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidFile", tmpFile.Name(), false},
+		{"InvalidFile", "nonexistentfile.txt", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateFilePath(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateFileExtension(t *testing.T) {
+	// テスト用の一時ファイルを作成
+	tmpFile, err := os.CreateTemp("", "testfile*.txt")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	tests := []struct {
+		name            string
+		file            *os.File
+		validExtensions []string
+		expectErr       bool
+	}{
+		{"ValidExtension", tmpFile, []string{".txt", ".md"}, false},
+		{"InvalidExtension", tmpFile, []string{".exe", ".bin"}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateFileExtension(tt.file, "Field1", tt.validExtensions, "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestValidateUUID(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     string
+		expectErr bool
+	}{
+		{"ValidUUID", "123e4567-e89b-12d3-a456-426614174000", false},
+		{"InvalidUUID", "invalid-uuid", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateUUID(tt.value, "Field1", "")
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			}
+		})
+	}
+}
+
+func TestRequired(t *testing.T) {
+	tests := []struct {
+		name      string
+		value     interface{}
+		skipNil   bool
+		expectErr bool
+	}{
+		{"NonEmptyString", "test", false, false},
+		{"EmptyString", "", false, true},
+		{"NilPointer", (*string)(nil), false, true},
+		{"ZeroInt", 0, false, true},
+		{"NonZeroInt", 123, false, false},
+		{"EmptySlice", []int{}, false, true},
+		{"NonEmptySlice", []int{1, 2, 3}, false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.Required(tt.value, "Field1", "", tt.skipNil)
+			if (len(vc.Errors()) > 0) != tt.expectErr {
+				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
 			}
 		})
 	}
