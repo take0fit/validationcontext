@@ -15,6 +15,7 @@ func (vc *ValidationContext) ValidateMinLength(value string, field string, min i
 	if utf8.RuneCountInString(value) < min {
 		if errMsg != "" {
 			vc.AddError(field, errMsg)
+			return
 		}
 		vc.AddError(field, fmt.Sprintf("%sは%d文字以上で入力してください。", field, min))
 	}
@@ -25,6 +26,7 @@ func (vc *ValidationContext) ValidateMaxLength(value string, field string, max i
 	if utf8.RuneCountInString(value) > max {
 		if errMsg != "" {
 			vc.AddError(field, errMsg)
+			return
 		}
 		vc.AddError(field, fmt.Sprintf("%sは%d文字以内で入力してください。", field, max))
 	}
@@ -36,6 +38,7 @@ func (vc *ValidationContext) ValidateEmail(value string, field string, errMsg st
 	if !re.MatchString(value) {
 		if errMsg != "" {
 			vc.AddError(field, errMsg)
+			return
 		}
 		vc.AddError(field, fmt.Sprintf("%sには、有効なメールアドレスを指定してください。", field))
 	}
@@ -131,9 +134,9 @@ func (vc *ValidationContext) ValidateURL(value, field, errMsg string) {
 	if !re.MatchString(value) {
 		if errMsg != "" {
 			vc.AddError(field, errMsg)
-		} else {
-			vc.AddError(field, fmt.Sprintf("%sには、有効なURLを指定してください。", field))
+			return
 		}
+		vc.AddError(field, fmt.Sprintf("%sには、有効なURLを指定してください。", field))
 	}
 }
 

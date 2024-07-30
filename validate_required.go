@@ -8,9 +8,13 @@ import (
 // Required adds a required validation rule to the context.
 func (vc *ValidationContext) Required(value interface{}, field string, message string, skipNil bool) {
 	value, isNil := indirect(value)
-	if skipNil && !isNil && isEmpty(value) || !skipNil && (isNil || isEmpty(value)) {
+	if skipNil && isNil {
+		return
+	}
+	if isNil || isEmpty(value) {
 		if message == "" {
-			message = fmt.Sprintf("%sは必須項目です。", field)
+			vc.AddError(field, fmt.Sprintf("%sは必須項目です。", field))
+			return
 		}
 		vc.AddError(field, message)
 	}

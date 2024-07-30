@@ -27,12 +27,13 @@ func TestErrors(t *testing.T) {
 
 func TestHasErrors(t *testing.T) {
 	tests := []struct {
-		name   string
-		errors []ValidationError
-		want   bool
+		name           string
+		errors         []ValidationError
+		want           bool
+		expectErrCount int
 	}{
-		{"No errors", []ValidationError{}, false},
-		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}}, true},
+		{"No errors", []ValidationError{}, false, 0},
+		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}}, true, 1},
 	}
 
 	for _, tt := range tests {
@@ -41,18 +42,22 @@ func TestHasErrors(t *testing.T) {
 			if got := vc.HasErrors(); got != tt.want {
 				t.Errorf("HasErrors() = %v, want %v", got, tt.want)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestFormatErrors(t *testing.T) {
 	tests := []struct {
-		name   string
-		errors []ValidationError
-		want   string
+		name           string
+		errors         []ValidationError
+		want           string
+		expectErrCount int
 	}{
-		{"No errors", []ValidationError{}, "No validation errors"},
-		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}, {Field: "Field2", Message: "Error2"}}, "Validation errors:\nField: Field1, Error: Error1\nField: Field2, Error: Error2\n"},
+		{"No errors", []ValidationError{}, "No validation errors", 0},
+		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}, {Field: "Field2", Message: "Error2"}}, "Validation errors:\nField: Field1, Error: Error1\nField: Field2, Error: Error2\n", 2},
 	}
 
 	for _, tt := range tests {
@@ -61,18 +66,22 @@ func TestFormatErrors(t *testing.T) {
 			if got := vc.FormatErrors(); got != tt.want {
 				t.Errorf("FormatErrors() = %v, want %v", got, tt.want)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestAggregateError(t *testing.T) {
 	tests := []struct {
-		name   string
-		errors []ValidationError
-		want   string
+		name           string
+		errors         []ValidationError
+		want           string
+		expectErrCount int
 	}{
-		{"No errors", []ValidationError{}, ""},
-		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}, {Field: "Field2", Message: "Error2"}}, "Validation errors:\nField: Field1, Error: Error1\nField: Field2, Error: Error2\n"},
+		{"No errors", []ValidationError{}, "", 0},
+		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}, {Field: "Field2", Message: "Error2"}}, "Validation errors:\nField: Field1, Error: Error1\nField: Field2, Error: Error2\n", 2},
 	}
 
 	for _, tt := range tests {
@@ -82,21 +91,25 @@ func TestAggregateError(t *testing.T) {
 			if (err == nil && tt.want != "") || (err != nil && err.Error() != tt.want) {
 				t.Errorf("AggregateError() = %v, want %v", err, tt.want)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateMinLength(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		field     string
-		minLen    int
-		errMsg    string
-		wantError bool
+		name           string
+		value          string
+		field          string
+		minLen         int
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"Min length not met", "abc", "MinLengthField", 5, "Min length is 5", true},
-		{"Min length met", "abcdef", "MinLengthField", 5, "Min length is 5", false},
+		{"Min length not met", "abc", "MinLengthField", 5, "Min length is 5", true, 1},
+		{"Min length met", "abcdef", "MinLengthField", 5, "Min length is 5", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -106,21 +119,25 @@ func TestValidateMinLength(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateMinLength() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateMaxLength(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		field     string
-		maxLen    int
-		errMsg    string
-		wantError bool
+		name           string
+		value          string
+		field          string
+		maxLen         int
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"Max length exceeded", "abcdefghij", "MaxLengthField", 5, "Max length is 5", true},
-		{"Max length not exceeded", "abc", "MaxLengthField", 5, "Max length is 5", false},
+		{"Max length exceeded", "abcdefghij", "MaxLengthField", 5, "Max length is 5", true, 1},
+		{"Max length not exceeded", "abc", "MaxLengthField", 5, "Max length is 5", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -130,20 +147,24 @@ func TestValidateMaxLength(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateMaxLength() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateEmailFormat(t *testing.T) {
 	tests := []struct {
-		name      string
-		email     string
-		field     string
-		errMsg    string
-		wantError bool
+		name           string
+		email          string
+		field          string
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"Invalid email format", "invalid-email", "EmailField", "Invalid email format", true},
-		{"Valid email format", "test@example.com", "EmailField", "Invalid email format", false},
+		{"Invalid email format", "invalid-email", "EmailField", "Invalid email format", true, 1},
+		{"Valid email format", "test@example.com", "EmailField", "Invalid email format", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -153,20 +174,24 @@ func TestValidateEmailFormat(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateEmailFormat() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateContainsSpecial(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		field     string
-		errMsg    string
-		wantError bool
+		name           string
+		value          string
+		field          string
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"No special character", "abc123", "SpecialCharField", "Must contain special character", true},
-		{"With special character", "abc!123", "SpecialCharField", "Must contain special character", false},
+		{"No special character", "abc123", "SpecialCharField", "Must contain special character", true, 1},
+		{"With special character", "abc!123", "SpecialCharField", "Must contain special character", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -176,20 +201,24 @@ func TestValidateContainsSpecial(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateContainsSpecial() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateContainsNumber(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		field     string
-		errMsg    string
-		wantError bool
+		name           string
+		value          string
+		field          string
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"No number", "abcdef", "NumberField", "Must contain number", true},
-		{"With number", "abc123", "NumberField", "Must contain number", false},
+		{"No number", "abcdef", "NumberField", "Must contain number", true, 1},
+		{"With number", "abc123", "NumberField", "Must contain number", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -199,20 +228,24 @@ func TestValidateContainsNumber(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateContainsNumber() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateContainsUppercase(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		field     string
-		errMsg    string
-		wantError bool
+		name           string
+		value          string
+		field          string
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"No uppercase letter", "abcdef", "UppercaseField", "Must contain uppercase letter", true},
-		{"With uppercase letter", "Abcdef", "UppercaseField", "Must contain uppercase letter", false},
+		{"No uppercase letter", "abcdef", "UppercaseField", "Must contain uppercase letter", true, 1},
+		{"With uppercase letter", "Abcdef", "UppercaseField", "Must contain uppercase letter", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -222,20 +255,24 @@ func TestValidateContainsUppercase(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateContainsUppercase() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateContainsLowercase(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		field     string
-		errMsg    string
-		wantError bool
+		name           string
+		value          string
+		field          string
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"No lowercase letter", "ABCDEF", "LowercaseField", "Must contain lowercase letter", true},
-		{"With lowercase letter", "Abcdef", "LowercaseField", "Must contain lowercase letter", false},
+		{"No lowercase letter", "ABCDEF", "LowercaseField", "Must contain lowercase letter", true, 1},
+		{"With lowercase letter", "Abcdef", "LowercaseField", "Must contain lowercase letter", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -245,21 +282,25 @@ func TestValidateContainsLowercase(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateContainsLowercase() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateMinValue(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     int
-		field     string
-		minValue  int
-		errMsg    string
-		wantError bool
+		name           string
+		value          int
+		field          string
+		minValue       int
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"Value below min", 5, "MinValueField", 10, "Min value is 10", true},
-		{"Value above min", 15, "MinValueField", 10, "Min value is 10", false},
+		{"Value below min", 5, "MinValueField", 10, "Min value is 10", true, 1},
+		{"Value above min", 15, "MinValueField", 10, "Min value is 10", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -269,21 +310,25 @@ func TestValidateMinValue(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateMinValue() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateMaxValue(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     int
-		field     string
-		maxValue  int
-		errMsg    string
-		wantError bool
+		name           string
+		value          int
+		field          string
+		maxValue       int
+		errMsg         string
+		wantError      bool
+		expectErrCount int
 	}{
-		{"Value above max", 15, "MaxValueField", 10, "Max value is 10", true},
-		{"Value below max", 5, "MaxValueField", 10, "Max value is 10", false},
+		{"Value above max", 15, "MaxValueField", 10, "Max value is 10", true, 1},
+		{"Value below max", 5, "MaxValueField", 10, "Max value is 10", false, 0},
 	}
 
 	for _, tt := range tests {
@@ -293,26 +338,29 @@ func TestValidateMaxValue(t *testing.T) {
 			if vc.HasErrors() != tt.wantError {
 				t.Errorf("ValidateMaxValue() = %v, want %v", vc.HasErrors(), tt.wantError)
 			}
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
 		})
 	}
 }
 
 func TestValidateDate(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidDate", "2023-07-25", false},
-		{"InvalidDate", "2023-07-32", true},
+		{"ValidDate", "2023-07-25", 0},
+		{"InvalidDate", "2023-07-32", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateDate(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -320,20 +368,20 @@ func TestValidateDate(t *testing.T) {
 
 func TestValidateYearMonth(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidYearMonth", "2023-07", false},
-		{"InvalidYearMonth", "2023-13", true},
+		{"ValidYearMonth", "2023-07", 0},
+		{"InvalidYearMonth", "2023-13", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateYearMonth(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -341,20 +389,20 @@ func TestValidateYearMonth(t *testing.T) {
 
 func TestValidateYear(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidYear", "2023", false},
-		{"InvalidYear", "20A3", true},
+		{"ValidYear", "2023", 0},
+		{"InvalidYear", "20A3", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateYear(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -362,20 +410,20 @@ func TestValidateYear(t *testing.T) {
 
 func TestValidateMonth(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidMonth", "07", false},
-		{"InvalidMonth", "13", true},
+		{"ValidMonth", "07", 0},
+		{"InvalidMonth", "13", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateMonth(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -383,20 +431,20 @@ func TestValidateMonth(t *testing.T) {
 
 func TestValidateDateTime(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidDateTime", "2023-07-25 15:04:05", false},
-		{"InvalidDateTime", "2023-07-25 25:04:05", true},
+		{"ValidDateTime", "2023-07-25 15:04:05", 0},
+		{"InvalidDateTime", "2023-07-25 25:04:05", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateDateTime(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -404,20 +452,20 @@ func TestValidateDateTime(t *testing.T) {
 
 func TestValidateTime(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidTime", "15:04", false},
-		{"InvalidTime", "25:04", true},
+		{"ValidTime", "15:04", 0},
+		{"InvalidTime", "25:04", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateTime(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -425,22 +473,22 @@ func TestValidateTime(t *testing.T) {
 
 func TestValidateURL(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidURL", "https://www.example.com", false},
-		{"InvalidURL", "ht://www.example.com", true},
-		{"EmptyScheme", "www.example.com", true},
-		{"EmptyHost", "https://", true},
+		{"ValidURL", "https://www.example.com", 0},
+		{"InvalidURL", "ht://www.example.com", 1},
+		{"EmptyScheme", "www.example.com", 1},
+		{"EmptyHost", "https://", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateURL(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -455,20 +503,20 @@ func TestValidateFile(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidFile", tmpFile.Name(), false},
-		{"InvalidFile", "nonexistentfile.txt", true},
+		{"ValidFile", tmpFile.Name(), 0},
+		{"InvalidFile", "nonexistentfile.txt", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateFilePath(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -486,18 +534,18 @@ func TestValidateFileExtension(t *testing.T) {
 		name            string
 		file            *os.File
 		validExtensions []string
-		expectErr       bool
+		expectErrCount  int
 	}{
-		{"ValidExtension", tmpFile, []string{".txt", ".md"}, false},
-		{"InvalidExtension", tmpFile, []string{".exe", ".bin"}, true},
+		{"ValidExtension", tmpFile, []string{".txt", ".md"}, 0},
+		{"InvalidExtension", tmpFile, []string{".exe", ".bin"}, 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateFileExtension(tt.file, "Field1", tt.validExtensions, "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -505,20 +553,20 @@ func TestValidateFileExtension(t *testing.T) {
 
 func TestValidateUUID(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     string
-		expectErr bool
+		name           string
+		value          string
+		expectErrCount int
 	}{
-		{"ValidUUID", "123e4567-e89b-12d3-a456-426614174000", false},
-		{"InvalidUUID", "invalid-uuid", true},
+		{"ValidUUID", "123e4567-e89b-12d3-a456-426614174000", 0},
+		{"InvalidUUID", "invalid-uuid", 1},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.ValidateUUID(tt.value, "Field1", "")
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
@@ -526,26 +574,26 @@ func TestValidateUUID(t *testing.T) {
 
 func TestRequired(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     interface{}
-		skipNil   bool
-		expectErr bool
+		name           string
+		value          interface{}
+		skipNil        bool
+		expectErrCount int
 	}{
-		{"NonEmptyString", "test", false, false},
-		{"EmptyString", "", false, true},
-		{"NilPointer", (*string)(nil), false, true},
-		{"ZeroInt", 0, false, true},
-		{"NonZeroInt", 123, false, false},
-		{"EmptySlice", []int{}, false, true},
-		{"NonEmptySlice", []int{1, 2, 3}, false, false},
+		{"NonEmptyString", "test", false, 0},
+		{"EmptyString", "", false, 1},
+		{"NilPointer", (*string)(nil), false, 1},
+		{"ZeroInt", 0, false, 1},
+		{"NonZeroInt", 123, false, 0},
+		{"EmptySlice", []int{}, false, 1},
+		{"NonEmptySlice", []int{1, 2, 3}, false, 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
 			vc.Required(tt.value, "Field1", "", tt.skipNil)
-			if (len(vc.Errors()) > 0) != tt.expectErr {
-				t.Errorf("Expected error: %v, got: %v", tt.expectErr, vc.Errors())
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
 		})
 	}
