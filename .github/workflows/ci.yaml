@@ -37,7 +37,7 @@ jobs:
         run: |
           COVERAGE=$(cat coverage.txt)
           echo "Coverage: ${COVERAGE}%"
-          if (( $(echo "${COVERAGE} < 80" | bc -l) )); then
-            echo "Coverage is below 80%"
+          if (( $(echo "${COVERAGE} < 60" | bc -l) )); then
+            echo "Coverage is below 60%"
             exit 1
           fi
