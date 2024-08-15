@@ -33,3 +33,20 @@ func (vc *ValidationContext) ValidateFileExtension(file *os.File, field string, 
 	}
 	vc.AddError(field, fmt.Sprintf("%sには、有効な拡張子（%v）を持つファイルを指定してください。", field, validExtensions))
 }
+
+// ValidateFileSize checks if the file size is within the specified limit.
+func (vc *ValidationContext) ValidateFileSize(file *os.File, field string, maxSize int64, errMsg string) {
+	fileInfo, err := file.Stat()
+	if err != nil {
+		vc.AddError(field, fmt.Sprintf("%sのファイル情報の取得に失敗しました: %v", field, err))
+		return
+	}
+
+	if fileInfo.Size() > maxSize {
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+		} else {
+			vc.AddError(field, fmt.Sprintf("%sのファイルサイズは%dMB以下でなければなりません", field, maxSize/(1024*1024)))
+		}
+	}
+}
