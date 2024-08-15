@@ -598,3 +598,57 @@ func TestRequired(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateFileSize(t *testing.T) {
+	const maxSize int64 = 2 * 1024 * 1024 // 2MB
+
+	// テスト用の一時ファイルを作成
+	tmpFile, err := os.CreateTemp("", "testfile")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	tests := []struct {
+		name           string
+		fileContent    []byte
+		expectErrCount int
+	}{
+		{
+			name:           "FileSizeBelowMaxSize",
+			fileContent:    make([]byte, maxSize-1),
+			expectErrCount: 0,
+		},
+		{
+			name:           "FileSizeEqualsMaxSize",
+			fileContent:    make([]byte, maxSize),
+			expectErrCount: 0,
+		},
+		{
+			name:           "FileSizeAboveMaxSize",
+			fileContent:    make([]byte, maxSize+1),
+			expectErrCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// ファイルの内容を設定
+			if _, err := tmpFile.Write(tt.fileContent); err != nil {
+				t.Fatalf("Failed to write to temporary file: %v", err)
+			}
+			tmpFile.Seek(0, 0)
+
+			vc := NewValidationContext()
+			vc.ValidateFileSize(tmpFile, "HairdresserLicenseImage", maxSize, "File size must be 2MB or less")
+
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
+
+			// ファイルをリセット
+			tmpFile.Truncate(0)
+			tmpFile.Seek(0, 0)
+		})
+	}
+}
