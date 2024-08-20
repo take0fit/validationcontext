@@ -39,6 +39,16 @@ func (e *ValidationAggregateError) GetStackTraces() []string {
 	return e.StackTraces
 }
 
+// GetMessagesAsString returns all stack traces as a single string.
+func (e *ValidationAggregateError) GetMessagesAsString() string {
+	return strings.Join(e.Messages, "\n")
+}
+
+// GetStackTracesAsString returns all stack traces as a single string.
+func (e *ValidationAggregateError) GetStackTracesAsString() string {
+	return strings.Join(e.StackTraces, "\n")
+}
+
 // NewValidationContext creates and returns a new ValidationContext instance.
 func NewValidationContext() *ValidationContext {
 	return &ValidationContext{
