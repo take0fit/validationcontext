@@ -6,6 +6,7 @@ ValidationContext is a Go library designed to provide a centralized and efficien
 - Deferred Error Handling: Aggregate all validation errors and handle them collectively when necessary.
 - Comprehensive Validation Methods: A wide range of built-in validation methods, including file handling, string formatting, and value range checks.
 - Customizable: Easily extend the library with custom validation logic to fit specific requirements.
+- Enhanced Error Handling: Each validation error now includes a stack trace, and aggregate errors can be retrieved with both error messages and stack traces.
 
 ## Use Case
 In a DDD context, validations are often dispersed across multiple value objects. ValidationContext allows these validations to be aggregated and handled together, ensuring that all potential issues are addressed before proceeding with business logic.
@@ -18,7 +19,7 @@ go get github.com/yourusername/validationcontext
 
 ```
 ### Example Usage: Validating Multiple Value Objects
-Consider a scenario where you need to validate several value objects like HairdresserLicenseImage and BeauticianAddress. ValidationContext helps you collect and handle validation results from these objects at once.
+Consider a scenario where you need to validate several value objects like HairdresserLicenseImage and UserAddress. ValidationContext helps you collect and handle validation results from these objects at once.
 ```go
 package main
 
@@ -29,43 +30,54 @@ import (
 	"github.com/yourusername/validationcontext"
 )
 
-type HairdresserLicenseImage struct {
+type LicenseImage struct {
 	File *os.File
 }
 
-type BeauticianAddress struct {
-	Street string
+type UserAddress struct {
 	City   string
+	Street string
 }
 
-func NewHairdresserLicenseImage(file *os.File, vc *validationcontext.ValidationContext) HairdresserLicenseImage {
-	vc.Required(file, "HairdresserLicenseImage", "Hairdresser license image is required", false)
-	vc.ValidateFileExtension(file, "HairdresserLicenseImage", []string{".png", ".jpg"}, "Invalid file extension")
-	vc.ValidateFileSize(file, "HairdresserLicenseImage", 2*1024*1024, "File size must be 2MB or less")
-	return HairdresserLicenseImage{File: file}
+func NewLicenseImage(file *os.File, vc *validationcontext.ValidationContext) LicenseImage {
+	vc.Required(file, "LicenseImage", " license image is required", false)
+	vc.ValidateFileExtension(file, "LicenseImage", []string{".png", ".jpg"}, "Invalid file extension")
+	vc.ValidateFileSize(file, "LicenseImage", 2*1024*1024, "File size must be 2MB or less")
+	return LicenseImage{File: file}
 }
 
-func NewBeauticianAddress(street, city string, vc *validationcontext.ValidationContext) BeauticianAddress {
+func NewUserAddress(street, city string, vc *validationcontext.ValidationContext) UserAddress {
 	vc.Required(street, "Street", "Street is required", false)
 	vc.Required(city, "City", "City is required", false)
-	return BeauticianAddress{Street: street, City: city}
+	return UserAddress{Street: street, City: city}
 }
 
 func main() {
 	vc := validationcontext.NewValidationContext()
 
-	// Validate HairdresserLicenseImage
+	// Validate LicenseImage
 	file, _ := os.Open("test.jpg")
 	defer file.Close()
-	image := NewHairdresserLicenseImage(file, vc)
+	image := NewLicenseImage(file, vc)
 
-	// Validate BeauticianAddress
-	address := NewBeauticianAddress("Main St", "New York", vc)
+	// Validate UserAddress
+	address := NewUserAddress("Main St", "New York", vc)
 
 	// Check if any validation errors occurred
 	if vc.HasErrors() {
 		// Aggregate and handle all errors at once
-		fmt.Println(vc.FormatErrors())
+		err := vc.AggregateError()
+		if err != nil {
+			// Print the error messages and stack traces
+			fmt.Println(err.Error())
+			aggregateErr, ok := err.(*validationcontext.ValidationAggregateError)
+			if ok {
+				fmt.Println("Stack Traces:")
+				for _, trace := range aggregateErr.GetStackTraces() {
+					fmt.Println(trace)
+				}
+			}
+		}
 	} else {
 		fmt.Println("Validation passed for:", image.File.Name(), "and", address)
 	}
@@ -76,6 +88,7 @@ func main() {
 ## Explanation
 - Centralized Validation: The ValidationContext instance (vc) is passed around to each value object, collecting validation errors.
 - Deferred Error Handling: After all validations, vc.HasErrors() checks for any errors. If errors exist, they are aggregated and formatted for handling.
+- Enhanced Error Information: The updated version includes stack traces for each validation error, which can be accessed via the ValidationAggregateError type
 
 ## Validation Methods
 
@@ -106,7 +119,7 @@ Method	Description	Example Usage
 | ValidateDateTime            | Ensures a string is a valid date and time in the format "2006-01-02 15:04:05" | `vc.ValidateDateTime(value, "FieldName", "Invalid datetime format")` |
 | ValidateTime                | Ensures a string is a valid time in the format "15:04"          | `vc.ValidateTime(value, "FieldName", "Invalid time format")`            |
 
-＃＃ Customizing Validation Logic
+## Customizing Validation Logic
 ValidationContext is designed to be easily extendable, allowing you to implement custom validation logic that fits your specific needs. This can include additional string checks, complex object validations, or even integrating with external validation libraries.
 
 ## Conclusion

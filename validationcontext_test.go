@@ -8,11 +8,17 @@ import (
 func TestAddError(t *testing.T) {
 	vc := NewValidationContext()
 	vc.AddError("Field1", "Error1")
+
 	if len(vc.Errors()) != 1 {
 		t.Errorf("Expected 1 error, got %d", len(vc.Errors()))
 	}
+
 	if vc.Errors()[0].Field != "Field1" || vc.Errors()[0].Message != "Error1" {
 		t.Errorf("Unexpected error: %v", vc.Errors()[0])
+	}
+
+	if vc.Errors()[0].StackTrace == "" {
+		t.Error("Expected a stack trace, but got an empty string")
 	}
 }
 
@@ -20,6 +26,7 @@ func TestErrors(t *testing.T) {
 	vc := NewValidationContext()
 	vc.AddError("Field1", "Error1")
 	vc.AddError("Field2", "Error2")
+
 	if len(vc.Errors()) != 2 {
 		t.Errorf("Expected 2 errors, got %d", len(vc.Errors()))
 	}
@@ -77,20 +84,34 @@ func TestAggregateError(t *testing.T) {
 	tests := []struct {
 		name           string
 		errors         []ValidationError
-		want           string
+		wantMessage    string
+		wantStackTrace bool
 		expectErrCount int
 	}{
-		{"No errors", []ValidationError{}, "", 0},
-		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}, {Field: "Field2", Message: "Error2"}}, "Validation errors:\nField: Field1, Error: Error1\nField: Field2, Error: Error2\n", 2},
+		{"No errors", []ValidationError{}, "", false, 0},
+		{"With errors", []ValidationError{{Field: "Field1", Message: "Error1"}, {Field: "Field2", Message: "Error2"}}, "Validation errors: Field: Field1, Error: Error1; Field: Field2, Error: Error2", true, 2},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := &ValidationContext{errors: tt.errors}
 			err := vc.AggregateError()
-			if (err == nil && tt.want != "") || (err != nil && err.Error() != tt.want) {
-				t.Errorf("AggregateError() = %v, want %v", err, tt.want)
+
+			if (err == nil && tt.wantMessage != "") || (err != nil && err.Error() != tt.wantMessage) {
+				t.Errorf("AggregateError() = %v, want %v", err, tt.wantMessage)
 			}
+
+			if err != nil {
+				aggErr, ok := err.(*ValidationAggregateError)
+				if !ok {
+					t.Errorf("Expected error type *ValidationAggregateError, got %T", err)
+				}
+
+				if tt.wantStackTrace && len(aggErr.GetStackTraces()) == 0 {
+					t.Error("Expected stack traces, but got none")
+				}
+			}
+
 			if len(vc.Errors()) != tt.expectErrCount {
 				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
