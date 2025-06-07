@@ -535,7 +535,7 @@ func TestValidateFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			vc := NewValidationContext()
-			vc.ValidateFilePath(tt.value, "Field1", "")
+			vc.ValidateFile(tt.value, "Field1", "")
 			if len(vc.Errors()) != tt.expectErrCount {
 				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
 			}
