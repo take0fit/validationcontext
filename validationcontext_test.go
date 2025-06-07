@@ -515,6 +515,72 @@ func TestValidateURL(t *testing.T) {
 	}
 }
 
+func TestValidateIPAddress(t *testing.T) {
+	tests := []struct {
+		name           string
+		value          string
+		expectErrCount int
+	}{
+		{"ValidIPv4", "192.168.0.1", 0},
+		{"ValidIPv6", "2001:db8::1", 0},
+		{"InvalidIP", "not-an-ip", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateIPAddress(tt.value, "Field1", "")
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
+		})
+	}
+}
+
+func TestValidateIPv4(t *testing.T) {
+	tests := []struct {
+		name           string
+		value          string
+		expectErrCount int
+	}{
+		{"ValidIPv4", "192.168.0.1", 0},
+		{"IPv6Value", "2001:db8::1", 1},
+		{"InvalidIP", "bad-ip", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateIPv4(tt.value, "Field1", "")
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
+		})
+	}
+}
+
+func TestValidateIPv6(t *testing.T) {
+	tests := []struct {
+		name           string
+		value          string
+		expectErrCount int
+	}{
+		{"ValidIPv6", "2001:db8::1", 0},
+		{"IPv4Value", "192.168.0.1", 1},
+		{"InvalidIP", "bad-ip", 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vc := NewValidationContext()
+			vc.ValidateIPv6(tt.value, "Field1", "")
+			if len(vc.Errors()) != tt.expectErrCount {
+				t.Errorf("Expected error count: %v, got: %v", tt.expectErrCount, len(vc.Errors()))
+			}
+		})
+	}
+}
+
 func TestValidateFile(t *testing.T) {
 	// テスト用の一時ファイルを作成
 	tmpFile, err := os.CreateTemp("", "testfile")
