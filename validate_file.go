@@ -9,13 +9,11 @@ import (
 // ValidateFilePath checks if the value is a valid file path.
 func (vc *ValidationContext) ValidateFilePath(value, field, errMsg string) {
 	if _, err := os.Stat(value); err != nil {
-		if os.IsNotExist(err) {
-			if errMsg != "" {
-				vc.AddError(field, errMsg)
-				return
-			}
-			vc.AddError(field, fmt.Sprintf("%sには、有効なファイルパスを指定してください。", field))
+		if errMsg != "" {
+			vc.AddError(field, errMsg)
+			return
 		}
+		vc.AddError(field, fmt.Sprintf("%sには、有効なファイルパスを指定してください。", field))
 	}
 }
 
