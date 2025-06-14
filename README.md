@@ -106,6 +106,9 @@ Method	Description	Example Usage
 | ValidateContainsUppercase   | Ensures a string contains at least one uppercase letter         | `vc.ValidateContainsUppercase(value, "FieldName", "Must contain an uppercase letter")` |
 | ValidateContainsLowercase   | Ensures a string contains at least one lowercase letter         | `vc.ValidateContainsLowercase(value, "FieldName", "Must contain a lowercase letter")` |
 | ValidateURL                 | Checks if a string is a valid URL                               | `vc.ValidateURL(value, "FieldName", "Invalid URL format")`              |
+| ValidateIPAddress           | Checks if a value is a valid IP address (IPv4 or IPv6) | `vc.ValidateIPAddress(value, "FieldName", "Invalid IP address")` |
+| ValidateIPv4                | Checks if a value is a valid IPv4 address        | `vc.ValidateIPv4(value, "FieldName", "Invalid IPv4 address")` |
+| ValidateIPv6                | Checks if a value is a valid IPv6 address        | `vc.ValidateIPv6(value, "FieldName", "Invalid IPv6 address")` |
 | ValidateFilePath            | Ensures the file path is valid                                  | `vc.ValidateFilePath(value, "FilePath", "Invalid file path")`           |
 | ValidateFileExtension       | Checks if a file has a valid extension                          | `vc.ValidateFileExtension(file, "FieldName", []string{".jpg", ".png"}, "")` |
 | ValidateFileSize            | Ensures the file size is within the specified limit             | `vc.ValidateFileSize(file, "FieldName", 2*1024*1024, "File size must be 2MB or less")` |
