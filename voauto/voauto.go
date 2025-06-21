@@ -2,107 +2,121 @@ package voauto
 
 import (
 	"fmt"
+	"github.com/take0fit/validationcontext"
 	"reflect"
 	"strings"
 	"sync"
-
-	"github.com/take0fit/validationcontext"
 )
 
-// Constructor represents an application-provided factory.
-type Constructor func(any, *validationcontext.ValidationContext) any
+type ConstructorFunc func(v any, vc *validationcontext.ValidationContext) any
 
-// registry stores factories found by Bind().
-var registry = map[string]Constructor{}
-
-// onceMap guarantees each factory is registered only once.
 var (
-	onceMap = map[string]*sync.Once{}
-	mu      sync.Mutex // protects registry & onceMap
+	constructors = make(map[string]ConstructorFunc)
+	registerOnce = sync.Once{}
+	mu           sync.RWMutex
 )
 
-// Register adds a factory, but only on the first call for that name.
-func Register(name string, c Constructor) {
+// Register registers a constructor function with a given key
+func Register(key string, constructor ConstructorFunc) {
 	mu.Lock()
-	o, ok := onceMap[name]
-	if !ok {
-		o = &sync.Once{}
-		onceMap[name] = o
-	}
-	mu.Unlock()
-
-	o.Do(func() {
-		mu.Lock()
-		registry[name] = c
-		mu.Unlock()
-	})
+	defer mu.Unlock()
+	constructors[key] = constructor
 }
 
-// Bind populates dto fields through registered factories.
-func Bind(dto any, src any, vc *validationcontext.ValidationContext) error {
-	dstVal := reflect.ValueOf(dto)
-	if dstVal.Kind() != reflect.Pointer || dstVal.Elem().Kind() != reflect.Struct {
-		return fmt.Errorf("dto must be pointer to struct")
-	}
-	srcVal := reflect.ValueOf(src)
-	if srcVal.Kind() == reflect.Pointer {
-		srcVal = srcVal.Elem()
-	}
-	if srcVal.Kind() != reflect.Struct {
-		return fmt.Errorf("src must be struct or pointer to struct")
+// GetConstructor retrieves a constructor function by key
+func GetConstructor(key string) ConstructorFunc {
+	mu.RLock()
+	defer mu.RUnlock()
+	return constructors[key]
+}
+
+// BindAndValidate binds source data to a DTO and validates it
+func BindAndValidate[T any](source any) (*T, error) {
+	vc := validationcontext.NewValidationContext()
+
+	var result T
+	resultValue := reflect.ValueOf(&result).Elem()
+	resultType := reflect.TypeOf(result)
+
+	sourceValue := reflect.ValueOf(source)
+	if sourceValue.Kind() == reflect.Ptr {
+		sourceValue = sourceValue.Elem()
 	}
 
-	dstStruct := dstVal.Elem()
-	dstType := dstStruct.Type()
-
-	for i := 0; i < dstType.NumField(); i++ {
-		field := dstType.Field(i)
-
+	for i := 0; i < resultType.NumField(); i++ {
+		field := resultType.Field(i)
 		tag := field.Tag.Get("vctag")
-		var ctorName string
-		srcFieldName := field.Name
 
-		if tag != "" {
-			parts := strings.Split(tag, ",")
-			ctorName = strings.TrimSpace(parts[0])
-			if ctorName == "" {
-				return fmt.Errorf("vctag of field %s: constructor name is required", field.Name)
-			}
-			if len(parts) > 1 && strings.TrimSpace(parts[1]) != "" {
-				srcFieldName = strings.TrimSpace(parts[1])
-			}
-		} else {
-			ctorName = "New" + field.Name
-		}
-
-		srcField := srcVal.FieldByName(srcFieldName)
-		if !srcField.IsValid() {
+		if tag == "" {
 			continue
 		}
 
-		mu.Lock()
-		ctor, ok := registry[ctorName]
-		mu.Unlock()
-		if !ok {
-			return fmt.Errorf("constructor %s not registered", ctorName)
+		// タグを解析
+		constructorKey, sourceFieldName := parseTag(tag, field)
+
+		// 自動推論の場合、型からパッケージパスを取得してキーを生成
+		if strings.HasPrefix(tag, "auto:") {
+			constructorKey = generateKeyFromType(field.Type, constructorKey)
 		}
 
-		vo := ctor(srcField.Interface(), vc)
-		dstStruct.Field(i).Set(reflect.ValueOf(vo))
-	}
-	return nil
-}
+		// ソースから値を取得
+		sourceField := sourceValue.FieldByName(sourceFieldName)
+		if !sourceField.IsValid() {
+			continue
+		}
 
-// BindAndValidate is a convenience wrapper.
-func BindAndValidate[T any](src any) (*T, error) {
-	dto := new(T)
-	vc := validationcontext.NewValidationContext()
+		// コンストラクタを取得して実行
+		constructor := GetConstructor(constructorKey)
+		if constructor == nil {
+			return nil, fmt.Errorf("constructor not found: %s", constructorKey)
+		}
 
-	if err := Bind(dto, src, vc); err != nil {
-		return nil, err
+		resultObj := constructor(sourceField.Interface(), vc)
+		resultValue.Field(i).Set(reflect.ValueOf(resultObj))
 	}
+
 	if vc.HasErrors() {
 		return nil, vc.AggregateError()
 	}
-	return dto, nil
+
+	return &result, nil
+}
+
+func parseTag(tag string, field reflect.StructField) (constructorKey, sourceFieldName string) {
+	// "auto:" プレフィックスを除去
+	cleanTag := strings.TrimPrefix(tag, "auto:")
+
+	parts := strings.Split(cleanTag, ",")
+	constructorKey = strings.TrimSpace(parts[0])
+
+	if len(parts) > 1 {
+		sourceFieldName = strings.TrimSpace(parts[1])
+	} else {
+		sourceFieldName = field.Name
+	}
+
+	return constructorKey, sourceFieldName
+}
+
+func generateKeyFromType(fieldType reflect.Type, constructorName string) string {
+	// パッケージパスを取得
+	pkgPath := fieldType.PkgPath()
+	if pkgPath == "" {
+		return constructorName
+	}
+
+	// パッケージパスから最後の2-3セグメントを取得
+	parts := strings.Split(pkgPath, "/")
+	var keyParts []string
+
+	if len(parts) >= 3 {
+		keyParts = parts[len(parts)-3:]
+	} else if len(parts) >= 2 {
+		keyParts = parts[len(parts)-2:]
+	} else {
+		keyParts = []string{parts[len(parts)-1]}
+	}
+
+	packageKey := strings.Join(keyParts, "_")
+	return packageKey + "_" + constructorName
 }

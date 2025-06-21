@@ -8,8 +8,10 @@ import (
 
 func main() {
 	req := &profile.RequestCreateUser{
-		FirstName: "FirstName",
-		LastName:  "LastName",
+		FirstName:      "田中",
+		LastName:       "太郎",
+		AdminFirstName: "管理者",
+		AdminLastName:  "花子",
 	}
 
 	dto, err := profile.NewInputCreateUserDTO(req)
@@ -18,6 +20,9 @@ func main() {
 		return
 	}
 
-	fmt.Println("FirstName =", dto.FirstName.String())
-	fmt.Println("LastName  =", dto.LastName.String())
+	fmt.Println("User FirstName =", dto.UserFirstName.String())
+	fmt.Println("User LastName  =", dto.UserLastName.String())
+	fmt.Println("Admin FirstName =", dto.AdminFirstName.String())
+	fmt.Println("Admin LastName  =", dto.AdminLastName.String())
+	fmt.Println("Validation successful!")
 }

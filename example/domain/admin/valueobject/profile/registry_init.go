@@ -8,12 +8,12 @@ import (
 
 func init() {
 	// Fully qualified key (unique across different packages)
-	voauto.Register("user_valueobject_profile_NewFirstName",
+	voauto.Register("admin_valueobject_profile_NewFirstName",
 		func(v any, vc *validationcontext.ValidationContext) any {
 			return NewFirstName(v.(string), vc)
 		})
 	// Fully qualified key (unique across different packages)
-	voauto.Register("user_valueobject_profile_NewLastName",
+	voauto.Register("admin_valueobject_profile_NewLastName",
 		func(v any, vc *validationcontext.ValidationContext) any {
 			return NewLastName(v.(string), vc)
 		})
