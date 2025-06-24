@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/take0fit/validationcontext/internal/generator"
 )
@@ -17,7 +18,18 @@ func main() {
 
 	fmt.Printf("Scanning directory: %s\n", *targetDir)
 
-	gen := generator.New(*verbose)
+	// Get package information from environment variables set by go generate
+	goPackage := os.Getenv("GOPACKAGE")
+	goFile := os.Getenv("GOFILE")
+	goLine := os.Getenv("GOLINE")
+
+	if *verbose {
+		fmt.Printf("GOPACKAGE: %s\n", goPackage)
+		fmt.Printf("GOFILE: %s\n", goFile)
+		fmt.Printf("GOLINE: %s\n", goLine)
+	}
+
+	gen := generator.New(*verbose, goPackage)
 
 	fileCount, generateCommentCount, err := gen.ScanDirectory(*targetDir)
 	if err != nil {

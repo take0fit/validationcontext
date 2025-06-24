@@ -12,7 +12,6 @@ type ConstructorFunc func(v any, vc *validationcontext.ValidationContext) any
 
 var (
 	constructors = make(map[string]ConstructorFunc)
-	registerOnce = sync.Once{}
 	mu           sync.RWMutex
 )
 
@@ -47,32 +46,41 @@ func BindAndValidate[T any](source any) (*T, error) {
 		field := resultType.Field(i)
 		tag := field.Tag.Get("vctag")
 
-		if tag == "" {
-			continue
+		var constructorKey, sourceFieldName string
+
+		if tag != "" {
+			// Parse tag
+			constructorKey, sourceFieldName = parseTag(tag, field)
+
+			// For auto inference, generate key from type package path
+			if strings.HasPrefix(tag, "auto:") {
+				constructorKey = generateKeyFromType(field.Type, constructorKey)
+			}
+		} else {
+			// Convention: field name Val -> constructor NewVal
+			constructorKey = "New" + field.Name
+			sourceFieldName = field.Name
 		}
 
-		// タグを解析
-		constructorKey, sourceFieldName := parseTag(tag, field)
-
-		// 自動推論の場合、型からパッケージパスを取得してキーを生成
-		if strings.HasPrefix(tag, "auto:") {
-			constructorKey = generateKeyFromType(field.Type, constructorKey)
-		}
-
-		// ソースから値を取得
+		// Get value from source
 		sourceField := sourceValue.FieldByName(sourceFieldName)
 		if !sourceField.IsValid() {
 			continue
 		}
 
-		// コンストラクタを取得して実行
+		// Get constructor and execute
 		constructor := GetConstructor(constructorKey)
 		if constructor == nil {
 			return nil, fmt.Errorf("constructor not found: %s", constructorKey)
 		}
 
 		resultObj := constructor(sourceField.Interface(), vc)
-		resultValue.Field(i).Set(reflect.ValueOf(resultObj))
+		if resultObj != nil {
+			resultFieldValue := resultValue.Field(i)
+			if resultFieldValue.CanSet() {
+				resultFieldValue.Set(reflect.ValueOf(resultObj))
+			}
+		}
 	}
 
 	if vc.HasErrors() {
@@ -83,7 +91,7 @@ func BindAndValidate[T any](source any) (*T, error) {
 }
 
 func parseTag(tag string, field reflect.StructField) (constructorKey, sourceFieldName string) {
-	// "auto:" プレフィックスを除去
+	// Remove "auto:" prefix
 	cleanTag := strings.TrimPrefix(tag, "auto:")
 
 	parts := strings.Split(cleanTag, ",")
@@ -99,13 +107,13 @@ func parseTag(tag string, field reflect.StructField) (constructorKey, sourceFiel
 }
 
 func generateKeyFromType(fieldType reflect.Type, constructorName string) string {
-	// パッケージパスを取得
+	// Get package path
 	pkgPath := fieldType.PkgPath()
 	if pkgPath == "" {
 		return constructorName
 	}
 
-	// パッケージパスから最後の2-3セグメントを取得
+	// Get last 2-3 segments from package path
 	parts := strings.Split(pkgPath, "/")
 	var keyParts []string
 

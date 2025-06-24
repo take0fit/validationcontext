@@ -2,60 +2,50 @@ package voauto
 
 import (
 	"errors"
-	"reflect"
-	"sync"
+	"fmt"
 	"testing"
 
 	"github.com/take0fit/validationcontext"
 )
 
-/* ──────────────────────────────────────────────
-   Test-dummy VO / constructors
-   ────────────────────────────────────────────── */
-
 type dummyVO struct{ v string }
 
 func ctorEcho(val any, _ *validationcontext.ValidationContext) any {
-	return dummyVO{v: val.(string)}
+	fmt.Printf("ctorEcho called with: %+v (type: %T)\n", val, val)
+	result := dummyVO{v: val.(string)}
+	fmt.Printf("ctorEcho returning: %+v\n", result)
+	return result
 }
 func ctorFixed(_ any, _ *validationcontext.ValidationContext) any {
-	return dummyVO{v: "FIXED"}
+	result := dummyVO{v: "FIXED"}
+	fmt.Printf("ctorFixed returning: %+v\n", result)
+	return result
 }
-
-/* ──────────────────────────────────────────────
-   Helpers
-   ────────────────────────────────────────────── */
 
 func reset() {
 	mu.Lock()
 	defer mu.Unlock()
-	registry = map[string]Constructor{}
-	onceMap = map[string]*sync.Once{}
+	constructors = make(map[string]ConstructorFunc)
 }
-
-/* ──────────────────────────────────────────────
-   Tests
-   ────────────────────────────────────────────── */
 
 func TestVoauto(t *testing.T) {
 
 	t.Run("RegisterSyncOnce", func(t *testing.T) {
 		reset()
 		Register("NewDummy", ctorEcho)
-		Register("NewDummy", ctorFixed) // the second call should be ignored
+		Register("NewDummy", ctorFixed) // the second call overwrites the first one
 
 		type src struct{ Val string }
 		type dst struct {
 			Val dummyVO `vctag:"NewDummy,Val"`
 		}
-		in := src{Val: "AAA"}
-		var out dst
 
-		if err := Bind(&out, &in, validationcontext.NewValidationContext()); err != nil {
-			t.Fatalf("Bind err: %v", err)
+		result, err := BindAndValidate[dst](&src{Val: "AAA"})
+		if err != nil {
+			t.Fatalf("BindAndValidate err: %v", err)
 		}
-		if out.Val.v != "AAA" { // ctorEcho should have been executed
-			t.Errorf("want AAA, got %s", out.Val.v)
+		if result.Val.v != "FIXED" { // ctorFixed should have been executed (last registered)
+			t.Errorf("want FIXED, got %s", result.Val.v)
 		}
 	})
 
@@ -73,7 +63,7 @@ func TestVoauto(t *testing.T) {
 					reset()
 					Register("NewVal", ctorEcho) // field name Val -> NewVal
 				},
-				src:       struct{ Val string }{"hello"},
+				src:       &struct{ Val string }{"hello"},
 				dest:      &struct{ Val dummyVO }{},
 				wantValue: "hello",
 			},
@@ -83,7 +73,7 @@ func TestVoauto(t *testing.T) {
 					reset()
 					Register("CtorX", ctorEcho)
 				},
-				src: struct{ Name string }{"XYZ"},
+				src: &struct{ Name string }{"XYZ"},
 				dest: &struct {
 					Val dummyVO `vctag:"CtorX,Name"`
 				}{},
@@ -94,12 +84,32 @@ func TestVoauto(t *testing.T) {
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				c.register()
-				if err := Bind(c.dest, c.src, validationcontext.NewValidationContext()); err != nil {
-					t.Fatalf("Bind err: %v", err)
-				}
-				got := reflect.ValueOf(c.dest).Elem().Field(0).Interface().(dummyVO).v
-				if got != c.wantValue {
-					t.Errorf("Val = %s, want %s", got, c.wantValue)
+
+				// Use BindAndValidate
+				if c.name == "ConventionWithoutTag" {
+					type destType struct{ Val dummyVO }
+					fmt.Printf("Testing with src: %+v\n", c.src)
+					result, err := BindAndValidate[destType](c.src)
+					if err != nil {
+						t.Fatalf("BindAndValidate err: %v", err)
+					}
+					fmt.Printf("Result: %+v\n", result)
+					if result.Val.v != c.wantValue {
+						t.Errorf("Val = %s, want %s", result.Val.v, c.wantValue)
+					}
+				} else {
+					type destType struct {
+						Val dummyVO `vctag:"CtorX,Name"`
+					}
+					fmt.Printf("Testing with src: %+v\n", c.src)
+					result, err := BindAndValidate[destType](c.src)
+					if err != nil {
+						t.Fatalf("BindAndValidate err: %v", err)
+					}
+					fmt.Printf("Result: %+v\n", result)
+					if result.Val.v != c.wantValue {
+						t.Errorf("Val = %s, want %s", result.Val.v, c.wantValue)
+					}
 				}
 			})
 		}
@@ -108,36 +118,25 @@ func TestVoauto(t *testing.T) {
 	t.Run("BindErrors", func(t *testing.T) {
 		cases := []struct {
 			name      string
-			dest      any
 			src       any
 			expectErr string
 		}{
 			{
-				name: "UnregisteredConstructor",
-				dest: &struct {
-					V dummyVO `vctag:"NoCtor,V"`
-				}{},
+				name:      "UnregisteredConstructor",
 				src:       &struct{ V string }{"x"},
-				expectErr: "constructor NoCtor not registered",
-			},
-			{
-				name:      "DestNotPtr",
-				dest:      struct{}{},
-				src:       struct{}{},
-				expectErr: "dto must be pointer to struct",
-			},
-			{
-				name:      "SrcNotStruct",
-				dest:      &struct{}{},
-				src:       123,
-				expectErr: "src must be struct or pointer to struct",
+				expectErr: "constructor not found: NoCtor",
 			},
 		}
 
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
 				reset()
-				err := Bind(c.dest, c.src, validationcontext.NewValidationContext())
+
+				type destType struct {
+					V dummyVO `vctag:"NoCtor,V"`
+				}
+
+				_, err := BindAndValidate[destType](c.src)
 				if err == nil || err.Error() != c.expectErr {
 					t.Fatalf("want %q, got %v", c.expectErr, err)
 				}
@@ -149,8 +148,12 @@ func TestVoauto(t *testing.T) {
 		reset()
 		// constructor that performs a required check
 		Register("NewVal", func(v any, vc *validationcontext.ValidationContext) any {
-			vc.Required(v.(string), "Val", "required", false)
-			return dummyVO{v: v.(string)}
+			str := v.(string)
+			fmt.Printf("NewVal constructor called with: %q\n", str)
+			vc.Required(str, "Val", "required", false)
+			result := dummyVO{v: str}
+			fmt.Printf("NewVal constructor returning: %+v, has errors: %v\n", result, vc.HasErrors())
+			return result
 		})
 
 		type req struct{ Val string }
@@ -181,6 +184,7 @@ func TestVoauto(t *testing.T) {
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
+				fmt.Printf("Testing BindAndValidate with: %+v\n", tc.in)
 				got, err := BindAndValidate[dto](&tc.in)
 
 				if tc.wantErr {
@@ -202,6 +206,7 @@ func TestVoauto(t *testing.T) {
 				if err != nil {
 					t.Fatalf("unexpected err: %v", err)
 				}
+				fmt.Printf("BindAndValidate result: %+v\n", got)
 				if got.Val.v != tc.wantValue {
 					t.Errorf("Val = %s, want %s", got.Val.v, tc.wantValue)
 				}

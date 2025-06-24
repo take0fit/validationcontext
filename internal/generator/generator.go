@@ -9,15 +9,17 @@ import (
 
 // Generator handles the code generation process
 type Generator struct {
-	verbose        bool
-	packageDataMap map[string]*PackageData
+	verbose         bool
+	explicitPkgPath string
+	packageDataMap  map[string]*PackageData
 }
 
 // New creates a new Generator instance
-func New(verbose bool) *Generator {
+func New(verbose bool, explicitPkgPath string) *Generator {
 	return &Generator{
-		verbose:        verbose,
-		packageDataMap: make(map[string]*PackageData),
+		verbose:         verbose,
+		explicitPkgPath: explicitPkgPath,
+		packageDataMap:  make(map[string]*PackageData),
 	}
 }
 

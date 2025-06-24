@@ -62,8 +62,43 @@ func (g *Generator) processFile(filename string) int {
 // ensurePackageData ensures package data exists for the given directory
 func (g *Generator) ensurePackageData(packageDir string, file *ast.File, config *GenerateConfig) {
 	if g.packageDataMap[packageDir] == nil {
-		moduleDir := findModuleRoot(packageDir)
-		packagePath := getPackagePath(moduleDir, packageDir)
+		var packagePath string
+
+		// Try to use explicit package path from environment variable first
+		if g.explicitPkgPath != "" {
+			// If GOPACKAGE is just the package name, try to get full path from current directory
+			if !strings.Contains(g.explicitPkgPath, "/") {
+				currentPkgPath := getCurrentPackagePath()
+				if currentPkgPath != "" {
+					packagePath = currentPkgPath
+					if g.verbose {
+						fmt.Printf("  Using current directory package path: %s\n", packagePath)
+					}
+				} else {
+					packagePath = g.explicitPkgPath
+					if g.verbose {
+						fmt.Printf("  Using GOPACKAGE: %s\n", packagePath)
+					}
+				}
+			} else {
+				packagePath = g.explicitPkgPath
+				if g.verbose {
+					fmt.Printf("  Using explicit package path: %s\n", packagePath)
+				}
+			}
+		} else {
+			// Fall back to auto-detection
+			moduleDir := findModuleRoot(packageDir)
+			packagePath = getPackagePath(moduleDir, packageDir)
+			if g.verbose {
+				fmt.Printf("  Auto-detected package path: %s\n", packagePath)
+			}
+		}
+
+		if g.verbose {
+			fmt.Printf("  Package directory: %s\n", packageDir)
+			fmt.Printf("  Final package path: %s\n", packagePath)
+		}
 
 		g.packageDataMap[packageDir] = &PackageData{
 			PackageName:   file.Name.Name,
