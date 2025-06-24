@@ -1,0 +1,73 @@
+version: "2"
+
+run:
+  timeout: 5m
+  go: "1.24"
+
+linters-settings:
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: github.com/take0fit/validationcontext
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment
+
+  staticcheck:
+    checks: ["all"]
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+
+  unused:
+    check-exported: false
+
+  ineffassign: {}
+
+  misspell:
+    locale: US
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+
+  disable-all: true
+
+issues:
+  exclude-rules:
+    - path: ".*_test.go"
+      linters:
+        - unused
+    - path: "registry_init.go"
+      linters:
+        - unused
+        - deadcode
+    - path: ".*\\.pb\\.go"
+      linters:
+        - unused
+        - deadcode
+
+  exclude:
+    - "G404: Use of weak random number generator"
+
+  max-issues-per-linter: 50
+  max-same-issues: 3
+
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
