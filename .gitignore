@@ -1,2 +1,4 @@
 # Ignore IDE files
 .idea/
+.task
+bin
