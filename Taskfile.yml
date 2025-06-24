@@ -1,0 +1,159 @@
+
+version: '3'
+
+vars:
+  GO_MODULE: github.com/take0fit/validationcontext
+
+tasks:
+  default:
+    cmds:
+      - task: test
+
+  deps:
+    desc: Download dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  build-tool:
+    desc: Build voauto-gen tool
+    cmds:
+      - go build -o bin/voauto-gen ./cmd/voauto-gen
+    sources:
+      - "cmd/voauto-gen/**/*.go"
+      - "**/*.go"
+      - "!example/**/*.go"
+    generates:
+      - bin/voauto-gen
+
+  install-tool:
+    desc: Install voauto-gen tool to GOPATH/bin
+    deps: [build-tool]
+    cmds:
+      - go install ./cmd/voauto-gen
+
+  generate:
+    desc: Generate code using go generate
+    deps: [install-tool]
+    cmds:
+      - go generate ./...
+    sources:
+      - "**/*.go"
+      - "!**/registry_init.go"
+      - "!example/**/*registry_init.go"
+    generates:
+      - "**/registry_init.go"
+
+  build:
+    desc: Build the application
+    deps: [generate]
+    cmds:
+      - go build -o bin/voauto-gen ./cmd/voauto-gen
+    sources:
+      - "**/*.go"
+    generates:
+      - bin/voauto-gen
+
+  test:
+    desc: Run tests
+    deps: [generate]
+    cmds:
+      - go test -v ./...
+      - go test -race -v ./...
+    sources:
+      - "**/*.go"
+
+  bench:
+    desc: Run benchmark tests
+    cmds:
+      - go test -bench=. -benchmem ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run ./...
+
+  lint-fast:
+    desc: Run golangci-lint (fast mode)
+    cmds:
+      - golangci-lint run --fast ./...
+
+  lint-fix:
+    desc: Fix linting issues automatically
+    cmds:
+      - golangci-lint run --fix ./...
+
+  check:
+    desc: Run all checks (CI)
+    deps: [fmt, vet, lint, test]
+    cmds:
+      - echo "All checks passed!"
+
+  dev:
+    desc: Development mode with file watching
+    deps: [generate]
+    cmds:
+      - task: check
+    watch: true
+    sources:
+      - "**/*.go"
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/
+      - rm -f **/*registry_init.go || true
+      - go clean -cache
+      - go clean -testcache
+
+  install:
+    desc: Install voauto-gen tool to GOPATH/bin
+    deps: [build]
+    cmds:
+      - go install ./cmd/voauto-gen
+
+  release:
+    desc: Build release binaries
+    deps: [check]
+    cmds:
+      - mkdir -p dist/
+      - GOOS=linux GOARCH=amd64 go build -o dist/voauto-gen-linux-amd64 ./cmd/voauto-gen
+      - GOOS=darwin GOARCH=amd64 go build -o dist/voauto-gen-darwin-amd64 ./cmd/voauto-gen
+      - GOOS=darwin GOARCH=arm64 go build -o dist/voauto-gen-darwin-arm64 ./cmd/voauto-gen
+      - GOOS=windows GOARCH=amd64 go build -o dist/voauto-gen-windows-amd64.exe ./cmd/voauto-gen
+
+  coverage:
+    desc: Generate test coverage report
+    deps: [generate]
+    cmds:
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  health:
+    desc: Overall project health check
+    cmds:
+      - task: deps
+      - task: generate
+      - task: fmt
+      - task: vet
+      - task: lint
+      - task: test
+      - task: build
+      - echo "Project health check completed successfully!"
+
+  regenerate:
+    desc: Force regenerate all code
+    cmds:
+      - task: clean
+      - task: generate
