@@ -12,6 +12,7 @@ func main() {
 		LastName:       "太郎",
 		AdminFirstName: "管理者",
 		AdminLastName:  "花子",
+		Age:            20,
 	}
 
 	dto, err := profile.NewInputCreateUserDTO(req)
@@ -24,5 +25,6 @@ func main() {
 	fmt.Println("User LastName  =", dto.UserLastName.String())
 	fmt.Println("Admin FirstName =", dto.AdminFirstName.String())
 	fmt.Println("Admin LastName  =", dto.AdminLastName.String())
+	fmt.Println("Age =", dto.Age.Value())
 	fmt.Println("Validation successful!")
 }

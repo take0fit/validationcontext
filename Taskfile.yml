@@ -1,159 +1,98 @@
-
+# Taskfile.yaml
 version: '3'
 
 vars:
-  GO_MODULE: github.com/take0fit/validationcontext
+  APP_NAME: validationcontext
+  GO_VERSION: 1.24.3
 
 tasks:
   default:
+    desc: "デフォルトタスク - すべてのテストを実行"
     cmds:
-      - task: test
+      - task: test-all
 
-  deps:
-    desc: Download dependencies
-    cmds:
-      - go mod download
-      - go mod tidy
-
-  build-tool:
-    desc: Build voauto-gen tool
-    cmds:
-      - go build -o bin/voauto-gen ./cmd/voauto-gen
-    sources:
-      - "cmd/voauto-gen/**/*.go"
-      - "**/*.go"
-      - "!example/**/*.go"
-    generates:
-      - bin/voauto-gen
-
-  install-tool:
-    desc: Install voauto-gen tool to GOPATH/bin
-    deps: [build-tool]
+  install-gen:
+    desc: "コード生成ツールをインストール"
     cmds:
       - go install ./cmd/voauto-gen
 
   generate:
-    desc: Generate code using go generate
-    deps: [install-tool]
+    desc: "レジストリファイルを生成"
+    deps: [install-gen]
     cmds:
       - go generate ./...
-    sources:
-      - "**/*.go"
-      - "!**/registry_init.go"
-      - "!example/**/*registry_init.go"
-    generates:
-      - "**/registry_init.go"
-
-  build:
-    desc: Build the application
-    deps: [generate]
-    cmds:
-      - go build -o bin/voauto-gen ./cmd/voauto-gen
-    sources:
-      - "**/*.go"
-    generates:
-      - bin/voauto-gen
-
-  test:
-    desc: Run tests
-    deps: [generate]
-    cmds:
-      - go test -v ./...
-      - go test -race -v ./...
-    sources:
-      - "**/*.go"
-
-  bench:
-    desc: Run benchmark tests
-    cmds:
-      - go test -bench=. -benchmem ./...
-
-  vet:
-    desc: Run go vet
-    cmds:
-      - go vet ./...
-
-  fmt:
-    desc: Format code
-    cmds:
-      - go fmt ./...
-
-  lint:
-    desc: Run golangci-lint
-    cmds:
-      - golangci-lint run ./...
-
-  lint-fast:
-    desc: Run golangci-lint (fast mode)
-    cmds:
-      - golangci-lint run --fast ./...
-
-  lint-fix:
-    desc: Fix linting issues automatically
-    cmds:
-      - golangci-lint run --fix ./...
-
-  check:
-    desc: Run all checks (CI)
-    deps: [fmt, vet, lint, test]
-    cmds:
-      - echo "All checks passed!"
-
-  dev:
-    desc: Development mode with file watching
-    deps: [generate]
-    cmds:
-      - task: check
-    watch: true
-    sources:
-      - "**/*.go"
 
   clean:
-    desc: Clean build artifacts
+    desc: "生成されたファイルを削除"
     cmds:
-      - rm -rf bin/
-      - rm -f **/*registry_init.go || true
-      - go clean -cache
-      - go clean -testcache
+      - find . -name "registry_init.go" -delete
 
-  install:
-    desc: Install voauto-gen tool to GOPATH/bin
-    deps: [build]
-    cmds:
-      - go install ./cmd/voauto-gen
-
-  release:
-    desc: Build release binaries
-    deps: [check]
-    cmds:
-      - mkdir -p dist/
-      - GOOS=linux GOARCH=amd64 go build -o dist/voauto-gen-linux-amd64 ./cmd/voauto-gen
-      - GOOS=darwin GOARCH=amd64 go build -o dist/voauto-gen-darwin-amd64 ./cmd/voauto-gen
-      - GOOS=darwin GOARCH=arm64 go build -o dist/voauto-gen-darwin-arm64 ./cmd/voauto-gen
-      - GOOS=windows GOARCH=amd64 go build -o dist/voauto-gen-windows-amd64.exe ./cmd/voauto-gen
-
-  coverage:
-    desc: Generate test coverage report
+  build:
+    desc: "プロジェクトをビルド"
     deps: [generate]
     cmds:
-      - go test -coverprofile=coverage.out ./...
-      - go tool cover -html=coverage.out -o coverage.html
-      - echo "Coverage report generated at coverage.html"
+      - go build ./...
 
-  health:
-    desc: Overall project health check
+  test-user:
+    desc: "ユーザープロファイルテストを実行"
+    deps: [generate]
     cmds:
-      - task: deps
-      - task: generate
-      - task: fmt
-      - task: vet
-      - task: lint
-      - task: test
-      - task: build
-      - echo "Project health check completed successfully!"
+      - echo "Running User Profile Tests..."
+      - go run ./example/cmd/user_profile_test/main.go
 
-  regenerate:
-    desc: Force regenerate all code
+  test-all:
+    desc: "すべてのテストを実行"
+    deps: [generate]
+    cmds:
+      - echo "Running All Validation Tests..."
+      - go run ./example/cmd/all_tests/main.go
+
+  test-performance:
+    desc: "パフォーマンステストを実行"
+    deps: [generate]
+    cmds:
+      - echo "Running Performance Tests..."
+      - go run ./example/cmd/performance_test/main.go
+
+  test-full:
+    desc: "完全なテストスイートを実行"
+    deps: [test-user, test-book, test-conversion, test-all, test-performance]
+    cmds:
+      - echo "All tests completed!"
+
+  dev:
+    desc: "開発ワークフロー（クリーン + 生成 + テスト）"
     cmds:
       - task: clean
+      - task: install-gen
       - task: generate
+      - task: test-all
+
+  lint:
+    desc: "コードをlint"
+    cmds:
+      - go vet ./...
+      - go fmt ./...
+
+  mod-tidy:
+    desc: "go.modを整理"
+    cmds:
+      - go mod tidy
+
+  help:
+    desc: "利用可能なタスクを表示"
+    cmds:
+      - echo "利用可能なタスク:"
+      - echo "  install-gen     - コード生成ツールをインストール"
+      - echo "  generate        - レジストリファイルを生成"
+      - echo "  clean           - 生成されたファイルを削除"
+      - echo "  build           - プロジェクトをビルド"
+      - echo "  test-user       - ユーザープロファイルテスト"
+      - echo "  test-book       - Bookエンティティテスト"
+      - echo "  test-conversion - 型変換テスト"
+      - echo "  test-all        - すべてのテスト"
+      - echo "  test-performance- パフォーマンステスト"
+      - echo "  test-full       - 完全なテストスイート"
+      - echo "  dev             - 開発ワークフロー"
+      - echo "  lint            - コードlint"
+      - echo "  mod-tidy        - go.mod整理"

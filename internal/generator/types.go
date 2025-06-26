@@ -1,6 +1,37 @@
 package generator
 
-// Registration represents a single constructor registration
+type FunctionInfo struct {
+	Name        string
+	PackageName string
+	Params      []ParamInfo
+	Return      []ReturnInfo
+	ImportPath  string
+	FullKey     string
+}
+
+type ParamInfo struct {
+	Name string
+	Type string
+}
+
+type ReturnInfo struct {
+	Name string
+	Type string
+}
+
+type PackageInfo struct {
+	Name      string
+	Path      string
+	Functions []*FunctionInfo
+}
+
+type RegistryInfo struct {
+	PackageName string
+	Functions   []*FunctionInfo
+	ImportPath  string
+}
+
+// 元のコードで使用されている型定義
 type Registration struct {
 	ConstructorName string
 	RegistrationKey string
@@ -8,30 +39,31 @@ type Registration struct {
 	ParamType       string
 }
 
-// Import represents an import statement for the generated registry
-type Import struct {
-	Alias string
-	Path  string
-}
-
-// RegistryData contains all data needed to generate a registry file
-type RegistryData struct {
-	PackageName   string
-	Registrations []Registration
-	Imports       []Import
-}
-
-// GenerateConfig contains configuration parsed from //go:generate comments
 type GenerateConfig struct {
-	OutputPath    string
-	OutputPackage string
-	Methods       []string
+	OutputFile     string
+	OutputPath     string
+	OutputPackage  string
+	PackageName    string
+	Methods        []string
+	ExcludeMethods []string
+	Verbose        bool
 }
 
-// PackageData represents aggregated data for a single package
+// 元のfile_generator.goで使用されているPackageData構造
 type PackageData struct {
 	PackageName   string
 	PackagePath   string
 	Registrations []Registration
 	Config        *GenerateConfig
+}
+
+type Import struct {
+	Path  string
+	Alias string
+}
+
+type RegistryData struct {
+	PackageName   string
+	Registrations []Registration
+	Imports       []Import
 }
