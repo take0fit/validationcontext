@@ -22,6 +22,7 @@ func shouldIncludeMethod(methodName string, targetMethods []string) bool {
 
 // isValidationConstructor checks if a function is a validation constructor
 // A validation constructor must have at least one ValidationContext parameter
+// AND must not be an entity constructor (with multiple parameters)
 func isValidationConstructor(fn *ast.FuncDecl) bool {
 	if fn.Type.Params == nil || len(fn.Type.Params.List) < 1 {
 		return false
@@ -30,13 +31,25 @@ func isValidationConstructor(fn *ast.FuncDecl) bool {
 	params := fn.Type.Params.List
 
 	// Check if any parameter is ValidationContext
+	hasValidationContext := false
 	for _, param := range params {
 		if isValidationContextType(param.Type) {
-			return true
+			hasValidationContext = true
+			break
 		}
 	}
 
-	return false
+	if !hasValidationContext {
+		return false
+	}
+
+	// Exclude entity constructors (functions with more than 2 parameters)
+	// Value Object constructors should have exactly 2 parameters: (value, ValidationContext)
+	if len(params) > 2 {
+		return false
+	}
+
+	return true
 }
 
 // isValidationContextType checks if an expression represents ValidationContext type
@@ -118,7 +131,7 @@ func collectRegistrationsFromFile(file *ast.File, config *GenerateConfig, packag
 
 				registrations = append(registrations, reg)
 			} else if verbose && shouldIncludeMethod(fn.Name.Name, config.Methods) {
-				fmt.Printf("    Skipping method %s (not a validation constructor)\n", fn.Name.Name)
+				fmt.Printf("    Skipping method %s (not a validation constructor or entity constructor)\n", fn.Name.Name)
 			}
 		}
 	}

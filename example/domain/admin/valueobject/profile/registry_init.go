@@ -2,19 +2,186 @@
 package profile
 
 import (
+	"fmt"
 	"github.com/take0fit/validationcontext"
 	"github.com/take0fit/validationcontext/voauto"
+	"strconv"
 )
+
+// Type conversion helpers
+func convertToInt(v any) (int, error) {
+	switch val := v.(type) {
+	case int:
+		return val, nil
+	case int8:
+		return int(val), nil
+	case int16:
+		return int(val), nil
+	case int32:
+		return int(val), nil
+	case int64:
+		return int(val), nil
+	case uint:
+		return int(val), nil
+	case uint8:
+		return int(val), nil
+	case uint16:
+		return int(val), nil
+	case uint32:
+		return int(val), nil
+	case uint64:
+		return int(val), nil
+	case float32:
+		return int(val), nil
+	case float64:
+		return int(val), nil
+	case string:
+		parsed, err := strconv.Atoi(val)
+		if err != nil {
+			return 0, fmt.Errorf("cannot convert string '%s' to int: %w", val, err)
+		}
+		return parsed, nil
+	default:
+		return 0, fmt.Errorf("cannot convert %T to int", v)
+	}
+}
+
+func convertToString(v any) (string, error) {
+	switch val := v.(type) {
+	case string:
+		return val, nil
+	case int:
+		return strconv.Itoa(val), nil
+	case int8:
+		return strconv.Itoa(int(val)), nil
+	case int16:
+		return strconv.Itoa(int(val)), nil
+	case int32:
+		return strconv.Itoa(int(val)), nil
+	case int64:
+		return strconv.FormatInt(val, 10), nil
+	case uint:
+		return strconv.FormatUint(uint64(val), 10), nil
+	case uint8:
+		return strconv.FormatUint(uint64(val), 10), nil
+	case uint16:
+		return strconv.FormatUint(uint64(val), 10), nil
+	case uint32:
+		return strconv.FormatUint(uint64(val), 10), nil
+	case uint64:
+		return strconv.FormatUint(val, 10), nil
+	case float32:
+		return strconv.FormatFloat(float64(val), 'f', -1, 32), nil
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 64), nil
+	case bool:
+		return strconv.FormatBool(val), nil
+	default:
+		return "", fmt.Errorf("cannot convert %T to string", v)
+	}
+}
+
+func convertToBool(v any) (bool, error) {
+	switch val := v.(type) {
+	case bool:
+		return val, nil
+	case int:
+		return val != 0, nil
+	case int8:
+		return val != 0, nil
+	case int16:
+		return val != 0, nil
+	case int32:
+		return val != 0, nil
+	case int64:
+		return val != 0, nil
+	case uint:
+		return val != 0, nil
+	case uint8:
+		return val != 0, nil
+	case uint16:
+		return val != 0, nil
+	case uint32:
+		return val != 0, nil
+	case uint64:
+		return val != 0, nil
+	case float32:
+		return val != 0, nil
+	case float64:
+		return val != 0, nil
+	case string:
+		parsed, err := strconv.ParseBool(val)
+		if err != nil {
+			// Try parsing as number
+			if num, numErr := strconv.ParseFloat(val, 64); numErr == nil {
+				return num != 0, nil
+			}
+			return false, fmt.Errorf("cannot convert string '%s' to bool: %w", val, err)
+		}
+		return parsed, nil
+	default:
+		return false, fmt.Errorf("cannot convert %T to bool", v)
+	}
+}
+
+func convertToFloat64(v any) (float64, error) {
+	switch val := v.(type) {
+	case float64:
+		return val, nil
+	case float32:
+		return float64(val), nil
+	case int:
+		return float64(val), nil
+	case int8:
+		return float64(val), nil
+	case int16:
+		return float64(val), nil
+	case int32:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case uint:
+		return float64(val), nil
+	case uint8:
+		return float64(val), nil
+	case uint16:
+		return float64(val), nil
+	case uint32:
+		return float64(val), nil
+	case uint64:
+		return float64(val), nil
+	case string:
+		parsed, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return 0, fmt.Errorf("cannot convert string '%s' to float64: %w", val, err)
+		}
+		return parsed, nil
+	default:
+		return 0, fmt.Errorf("cannot convert %T to float64", v)
+	}
+}
 
 func init() {
 	// Fully qualified key (unique across different packages)
 	voauto.Register("admin_valueobject_profile_NewFirstName",
 		func(v any, vc *validationcontext.ValidationContext) any {
-			return NewFirstName(v.(string), vc)
+			// Handle different string types
+			strVal, err := convertToString(v)
+			if err != nil {
+				vc.AddError("admin_valueobject_profile_NewFirstName", fmt.Sprintf("Type conversion error: %v", err))
+				return NewFirstName("", vc) // Return empty string on error
+			}
+			return NewFirstName(strVal, vc)
 		})
 	// Fully qualified key (unique across different packages)
 	voauto.Register("admin_valueobject_profile_NewLastName",
 		func(v any, vc *validationcontext.ValidationContext) any {
-			return NewLastName(v.(string), vc)
+			// Handle different string types
+			strVal, err := convertToString(v)
+			if err != nil {
+				vc.AddError("admin_valueobject_profile_NewLastName", fmt.Sprintf("Type conversion error: %v", err))
+				return NewLastName("", vc) // Return empty string on error
+			}
+			return NewLastName(strVal, vc)
 		})
 }
