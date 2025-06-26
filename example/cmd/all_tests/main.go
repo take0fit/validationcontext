@@ -12,7 +12,7 @@ import (
 func main() {
 	fmt.Println("===============================================")
 	fmt.Println("  ValidationContext Library - All Tests")
-	fmt.Println("===============================================\n")
+	fmt.Println("===============================================")
 
 	// User Profile Tests
 	runUserProfileTests()

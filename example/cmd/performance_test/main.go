@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/take0fit/validationcontext/example/dto/book"
@@ -121,12 +122,4 @@ func testBulkOperations() {
 	fmt.Printf("Errors: %d\n", errorCount)
 	fmt.Printf("Duration: %v\n", duration)
 	fmt.Printf("Rate: %.2f ops/sec\n", float64(len(bookReqs))/duration.Seconds())
-}
-
-func strings.Repeat(s string, count int) string {
-	result := make([]byte, 0, len(s)*count)
-	for i := 0; i < count; i++ {
-		result = append(result, s...)
-	}
-	return string(result)
 }
