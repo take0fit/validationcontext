@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+const (
+	defaultValidationMessage = "不正な値です。"
+	initialStackBufferSize   = 1024
+	maxStackBufferSize       = 64 * 1024
+)
+
 type ValidationError struct {
 	Field      string
 	Message    string
@@ -59,6 +65,9 @@ func NewValidationContext() *ValidationContext {
 // AddError adds a validation error to the context, including the field, error message,
 // and captures the stack trace at the time the error occurred.
 func (vc *ValidationContext) AddError(field, message string) {
+	if strings.TrimSpace(message) == "" {
+		message = defaultValidationMessage
+	}
 	stackTrace := vc.captureStackTrace()
 	vc.errors = append(vc.errors, ValidationError{Field: field, Message: message, StackTrace: stackTrace})
 }
@@ -108,7 +117,20 @@ func (vc *ValidationContext) AggregateError() error {
 }
 
 func (vc *ValidationContext) captureStackTrace() string {
-	stackBuf := make([]byte, 1024)
-	n := runtime.Stack(stackBuf, false)
-	return string(stackBuf[:n])
+	stackBuf := make([]byte, initialStackBufferSize)
+	for {
+		n := runtime.Stack(stackBuf, false)
+		if n < len(stackBuf) || len(stackBuf) >= maxStackBufferSize {
+			return string(stackBuf[:n])
+		}
+		stackBuf = make([]byte, len(stackBuf)*2)
+	}
+}
+
+func (vc *ValidationContext) addErrorWithMessage(field, customMsg, defaultMsg string) {
+	if strings.TrimSpace(customMsg) != "" {
+		vc.AddError(field, customMsg)
+		return
+	}
+	vc.AddError(field, defaultMsg)
 }
