@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "codex": "CODEX_HOME=$(pwd)/.codex codex"
+  }
+}
