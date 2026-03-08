@@ -12,11 +12,7 @@ func (vc *ValidationContext) Required(value interface{}, field string, message s
 		return
 	}
 	if isNil || isEmpty(value) {
-		if message == "" {
-			vc.AddError(field, fmt.Sprintf("%sは必須項目です。", field))
-			return
-		}
-		vc.AddError(field, message)
+		vc.addErrorWithMessage(field, message, fmt.Sprintf("%sは必須項目です。", field))
 	}
 }
 

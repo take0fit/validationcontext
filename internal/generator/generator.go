@@ -2,8 +2,9 @@ package generator
 
 import (
 	"fmt"
-	"os"
+	"io/fs"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -23,34 +24,67 @@ func New(verbose bool, explicitPkgPath string) *Generator {
 	}
 }
 
-// ScanDirectory scans a directory for Go files and collects generation data
+// ScanDirectory scans a directory for Go files and collects generation data.
 func (g *Generator) ScanDirectory(targetDir string) (int, int, error) {
-	fileCount := 0
-	generateCommentCount := 0
-
-	err := filepath.Walk(targetDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	files := make([]string, 0)
+	err := filepath.WalkDir(targetDir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-
-		if strings.HasSuffix(path, ".go") &&
-			!strings.HasSuffix(path, "_test.go") &&
-			!strings.HasSuffix(path, "registry_init.go") {
-			fileCount++
-			if g.verbose {
-				fmt.Printf("Processing file: %s\n", path)
+		if d.IsDir() {
+			if isIgnoredDir(d.Name()) {
+				return filepath.SkipDir
 			}
-
-			commentCount := g.processFile(path)
-			generateCommentCount += commentCount
+			return nil
+		}
+		if isTargetGoFile(path) {
+			files = append(files, path)
 		}
 		return nil
 	})
+	if err != nil {
+		return 0, 0, err
+	}
 
-	return fileCount, generateCommentCount, err
+	sort.Strings(files)
+
+	fileCount := 0
+	generateCommentCount := 0
+	for _, path := range files {
+		fileCount++
+		if g.verbose {
+			fmt.Printf("Processing file: %s\n", path)
+		}
+		commentCount := g.processFile(path)
+		generateCommentCount += commentCount
+	}
+
+	return fileCount, generateCommentCount, nil
 }
 
-// GenerateRegistries generates registry files for all collected packages
+func isIgnoredDir(name string) bool {
+	switch name {
+	case ".git", "vendor":
+		return true
+	default:
+		return false
+	}
+}
+
+func isTargetGoFile(path string) bool {
+	if !strings.HasSuffix(path, ".go") {
+		return false
+	}
+	if strings.HasSuffix(path, "_test.go") {
+		return false
+	}
+	if strings.HasSuffix(path, "registry_init.go") {
+		return false
+	}
+	return true
+}
+
+// GenerateRegistries generates registry files for all collected packages.
 func (g *Generator) GenerateRegistries() (int, error) {
 	count := 0
 	for packageDir, data := range g.packageDataMap {

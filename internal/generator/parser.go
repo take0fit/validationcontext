@@ -11,7 +11,9 @@ import (
 	"strings"
 )
 
-// processFile processes a single Go file and collects registration data
+var generateCommentRegexp = regexp.MustCompile(`//go:generate\s+(?:voauto-gen|validationcontext)(?:\s+(.+))?`)
+
+// processFile processes a single Go file and collects registration data.
 func (g *Generator) processFile(filename string) int {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, nil, parser.ParseComments)
@@ -24,21 +26,23 @@ func (g *Generator) processFile(filename string) int {
 	generateCommentCount := 0
 	var config *GenerateConfig
 
-	// Look for //go:generate comments
 	for _, commentGroup := range file.Comments {
 		for _, comment := range commentGroup.List {
 			if g.verbose {
 				fmt.Printf("  Comment: %s\n", comment.Text)
 			}
 
-			if strings.Contains(comment.Text, "//go:generate voauto-gen") ||
-				strings.Contains(comment.Text, "//go:generate validationcontext") {
-				generateCommentCount++
-				fmt.Printf("Found generate comment in %s: %s\n", filename, comment.Text)
-
-				config = parseGenerateComment(comment.Text)
-				break
+			parsedConfig, ok := parseGenerateComment(comment.Text)
+			if !ok {
+				continue
 			}
+
+			generateCommentCount++
+			if g.verbose {
+				fmt.Printf("Found generate comment in %s: %s\n", filename, comment.Text)
+			}
+			config = parsedConfig
+			break
 		}
 		if config != nil {
 			break
@@ -59,14 +63,12 @@ func (g *Generator) processFile(filename string) int {
 	return generateCommentCount
 }
 
-// ensurePackageData ensures package data exists for the given directory
+// ensurePackageData ensures package data exists for the given directory.
 func (g *Generator) ensurePackageData(packageDir string, file *ast.File, config *GenerateConfig) {
 	if g.packageDataMap[packageDir] == nil {
 		var packagePath string
 
-		// Try to use explicit package path from environment variable first
 		if g.explicitPkgPath != "" {
-			// If GOPACKAGE is just the package name, try to get full path from current directory
 			if !strings.Contains(g.explicitPkgPath, "/") {
 				currentPkgPath := getCurrentPackagePath()
 				if currentPkgPath != "" {
@@ -87,7 +89,6 @@ func (g *Generator) ensurePackageData(packageDir string, file *ast.File, config 
 				}
 			}
 		} else {
-			// Fall back to auto-detection
 			moduleDir := findModuleRoot(packageDir)
 			packagePath = getPackagePath(moduleDir, packageDir)
 			if g.verbose {
@@ -109,37 +110,52 @@ func (g *Generator) ensurePackageData(packageDir string, file *ast.File, config 
 	}
 }
 
-// parseGenerateComment parses //go:generate comment and extracts configuration
-func parseGenerateComment(comment string) *GenerateConfig {
-	re := regexp.MustCompile(`//go:generate\s+(?:voauto-gen|validationcontext)(?:\s+(.+))?`)
-	matches := re.FindStringSubmatch(comment)
-	if len(matches) < 2 {
-		return &GenerateConfig{
-			OutputPath:    "registry_init.go",
-			OutputPackage: "",
-		}
+// parseGenerateComment parses //go:generate comment and extracts configuration.
+func parseGenerateComment(comment string) (*GenerateConfig, bool) {
+	matches := generateCommentRegexp.FindStringSubmatch(comment)
+	if len(matches) == 0 {
+		return nil, false
 	}
 
-	args := matches[1]
+	args := ""
+	if len(matches) > 1 {
+		args = matches[1]
+	}
+
 	config := &GenerateConfig{
 		OutputPath:    "registry_init.go",
 		OutputPackage: "",
 	}
 
 	parts := strings.Fields(args)
-	for _, part := range parts {
-		if strings.HasPrefix(part, "-output=") {
-			config.OutputPath = strings.TrimPrefix(part, "-output=")
-		} else if strings.HasPrefix(part, "-package=") {
-			config.OutputPackage = strings.TrimPrefix(part, "-package=")
-		} else if strings.HasPrefix(part, "-methods=") {
-			methodsStr := strings.TrimPrefix(part, "-methods=")
-			config.Methods = strings.Split(methodsStr, ",")
-			for i, method := range config.Methods {
-				config.Methods[i] = strings.TrimSpace(method)
+	for i := 0; i < len(parts); i++ {
+		part := parts[i]
+		switch {
+		case strings.HasPrefix(part, "-output="):
+			value := strings.TrimSpace(strings.TrimPrefix(part, "-output="))
+			if value != "" {
+				config.OutputPath = value
+			}
+		case strings.HasPrefix(part, "-package="):
+			config.OutputPackage = strings.TrimSpace(strings.TrimPrefix(part, "-package="))
+		case strings.HasPrefix(part, "-methods="):
+			methodsStr := strings.TrimSpace(strings.TrimPrefix(part, "-methods="))
+			for i+1 < len(parts) && !strings.HasPrefix(parts[i+1], "-") {
+				i++
+				methodsStr += strings.TrimSpace(parts[i])
+			}
+			if methodsStr == "" {
+				continue
+			}
+			methods := strings.Split(methodsStr, ",")
+			for _, method := range methods {
+				trimmed := strings.TrimSpace(method)
+				if trimmed != "" {
+					config.Methods = append(config.Methods, trimmed)
+				}
 			}
 		}
 	}
 
-	return config
+	return config, true
 }
