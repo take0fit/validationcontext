@@ -50,10 +50,16 @@ func (vc *ValidationContext) ValidateContainsSpecial(value, field, errMsg string
 	vc.addErrorWithMessage(field, errMsg, fmt.Sprintf("%sには、特殊文字を含めてください。", field))
 }
 
-func (vc *ValidationContext) ValidateContainsSpecialRegx(value, field, errMsg string) {
+// ValidateContainsSpecialRegex checks with a regular expression.
+func (vc *ValidationContext) ValidateContainsSpecialRegex(value, field, errMsg string) {
 	if !specialCharRegexp.MatchString(value) {
 		vc.addErrorWithMessage(field, errMsg, fmt.Sprintf("%sには、特殊文字を含めてください。", field))
 	}
+}
+
+// ValidateContainsSpecialRegx is deprecated. Use ValidateContainsSpecialRegex.
+func (vc *ValidationContext) ValidateContainsSpecialRegx(value, field, errMsg string) {
+	vc.ValidateContainsSpecialRegex(value, field, errMsg)
 }
 
 // ValidateContainsNumber checks if the value contains at least one number.
@@ -66,10 +72,16 @@ func (vc *ValidationContext) ValidateContainsNumber(value, field, errMsg string)
 	vc.addErrorWithMessage(field, errMsg, fmt.Sprintf("%sには、数字を含めてください。", field))
 }
 
-func (vc *ValidationContext) ValidateContainsNumberRegx(value, field, errMsg string) {
+// ValidateContainsNumberRegex checks with a regular expression.
+func (vc *ValidationContext) ValidateContainsNumberRegex(value, field, errMsg string) {
 	if !numberRegexp.MatchString(value) {
 		vc.addErrorWithMessage(field, errMsg, fmt.Sprintf("%sには、数字を含めてください。", field))
 	}
+}
+
+// ValidateContainsNumberRegx is deprecated. Use ValidateContainsNumberRegex.
+func (vc *ValidationContext) ValidateContainsNumberRegx(value, field, errMsg string) {
+	vc.ValidateContainsNumberRegex(value, field, errMsg)
 }
 
 // ValidateContainsUppercase checks if the value contains at least one uppercase letter.

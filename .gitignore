@@ -2,3 +2,5 @@
 .idea/
 .task
 bin
+.codex/
+.DS_Store

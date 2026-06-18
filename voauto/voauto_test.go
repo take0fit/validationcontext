@@ -18,15 +18,9 @@ func ctorFixed(_ any, _ *validationcontext.ValidationContext) any {
 	return dummyVO{v: "FIXED"}
 }
 
-func reset() {
-	mu.Lock()
-	defer mu.Unlock()
-	constructors = make(map[string]ConstructorFunc)
-}
-
 func TestVoauto(t *testing.T) {
 	t.Run("RegisterSyncOnce", func(t *testing.T) {
-		reset()
+		Reset()
 		Register("NewDummy", ctorEcho)
 		Register("NewDummy", ctorFixed)
 
@@ -54,7 +48,7 @@ func TestVoauto(t *testing.T) {
 			{
 				name: "ConventionWithoutTag",
 				register: func() {
-					reset()
+					Reset()
 					Register("NewVal", ctorEcho)
 				},
 				src:       &struct{ Val string }{"hello"},
@@ -63,7 +57,7 @@ func TestVoauto(t *testing.T) {
 			{
 				name: "ExplicitTagDifferentField",
 				register: func() {
-					reset()
+					Reset()
 					Register("CtorX", ctorEcho)
 				},
 				src:       &struct{ Name string }{"XYZ"},
@@ -102,20 +96,24 @@ func TestVoauto(t *testing.T) {
 
 	t.Run("BindErrors", func(t *testing.T) {
 		t.Run("UnregisteredConstructor", func(t *testing.T) {
-			reset()
+			Reset()
 
 			type destType struct {
 				V dummyVO `vctag:"NoCtor,V"`
 			}
 
 			_, err := BindAndValidate[destType](&struct{ V string }{"x"})
+			var bindErr *BindError
+			if !errors.As(err, &bindErr) || bindErr.Kind != BindErrorConstructorMissing {
+				t.Fatalf("unexpected bind error: %v", err)
+			}
 			if err == nil || err.Error() != "constructor not found: NoCtor" {
 				t.Fatalf("want %q, got %v", "constructor not found: NoCtor", err)
 			}
 		})
 
 		t.Run("SourceFieldNotFound", func(t *testing.T) {
-			reset()
+			Reset()
 			Register("CtorX", ctorEcho)
 
 			type destType struct {
@@ -123,35 +121,47 @@ func TestVoauto(t *testing.T) {
 			}
 
 			_, err := BindAndValidate[destType](&struct{ Name string }{"x"})
+			var bindErr *BindError
+			if !errors.As(err, &bindErr) || bindErr.Kind != BindErrorSourceFieldMissing {
+				t.Fatalf("unexpected bind error: %v", err)
+			}
 			if err == nil || err.Error() != "source field not found: Missing" {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 
 		t.Run("InvalidSource", func(t *testing.T) {
-			reset()
+			Reset()
 			type destType struct{ Val dummyVO }
 
 			_, err := BindAndValidate[destType]("not-struct")
+			var bindErr *BindError
+			if !errors.As(err, &bindErr) || bindErr.Kind != BindErrorSourceInvalid {
+				t.Fatalf("unexpected bind error: %v", err)
+			}
 			if err == nil || !strings.Contains(err.Error(), "source must be a struct or pointer to struct") {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 
 		t.Run("InvalidTag", func(t *testing.T) {
-			reset()
+			Reset()
 			type destType struct {
 				Val dummyVO `vctag:",Val"`
 			}
 
 			_, err := BindAndValidate[destType](&struct{ Val string }{"x"})
+			var bindErr *BindError
+			if !errors.As(err, &bindErr) || bindErr.Kind != BindErrorInvalidTag {
+				t.Fatalf("unexpected bind error: %v", err)
+			}
 			if err == nil || !strings.Contains(err.Error(), "constructor key is empty") {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
 
 		t.Run("ConstructorPanic", func(t *testing.T) {
-			reset()
+			Reset()
 			Register("NewVal", func(v any, vc *validationcontext.ValidationContext) any {
 				panic("boom")
 			})
@@ -159,6 +169,10 @@ func TestVoauto(t *testing.T) {
 			type destType struct{ Val dummyVO }
 
 			_, err := BindAndValidate[destType](&src{Val: "x"})
+			var bindErr *BindError
+			if !errors.As(err, &bindErr) || bindErr.Kind != BindErrorConstructorPanic {
+				t.Fatalf("unexpected bind error: %v", err)
+			}
 			if err == nil || !strings.Contains(err.Error(), "constructor panic") {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -166,7 +180,7 @@ func TestVoauto(t *testing.T) {
 	})
 
 	t.Run("BindAndValidate", func(t *testing.T) {
-		reset()
+		Reset()
 		Register("NewVal", func(v any, vc *validationcontext.ValidationContext) any {
 			str := v.(string)
 			vc.Required(str, "Val", "required", false)

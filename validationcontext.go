@@ -19,7 +19,8 @@ type ValidationError struct {
 }
 
 type ValidationContext struct {
-	errors []ValidationError
+	errors                []ValidationError
+	stackTraceEnabled bool
 }
 
 // ValidationAggregateError is a custom error type that aggregates multiple validation errors,
@@ -56,10 +57,29 @@ func (e *ValidationAggregateError) GetStackTracesAsString() string {
 }
 
 // NewValidationContext creates and returns a new ValidationContext instance.
-func NewValidationContext() *ValidationContext {
-	return &ValidationContext{
+func NewValidationContext(opts ...ValidationContextOption) *ValidationContext {
+	vc := &ValidationContext{
 		errors: make([]ValidationError, 0),
+		stackTraceEnabled: true,
 	}
+	for _, opt := range opts {
+		opt(vc)
+	}
+	return vc
+}
+
+type ValidationContextOption func(*ValidationContext)
+
+// WithStackTrace controls whether ValidationContext captures stack traces for each error.
+func WithStackTrace(enabled bool) ValidationContextOption {
+	return func(vc *ValidationContext) {
+		vc.stackTraceEnabled = enabled
+	}
+}
+
+// SetStackTraceEnabled updates stack trace capture behavior after initialization.
+func (vc *ValidationContext) SetStackTraceEnabled(enabled bool) {
+	vc.stackTraceEnabled = enabled
 }
 
 // AddError adds a validation error to the context, including the field, error message,
@@ -68,7 +88,10 @@ func (vc *ValidationContext) AddError(field, message string) {
 	if strings.TrimSpace(message) == "" {
 		message = defaultValidationMessage
 	}
-	stackTrace := vc.captureStackTrace()
+	stackTrace := ""
+	if vc.stackTraceEnabled {
+		stackTrace = vc.captureStackTrace()
+	}
 	vc.errors = append(vc.errors, ValidationError{Field: field, Message: message, StackTrace: stackTrace})
 }
 

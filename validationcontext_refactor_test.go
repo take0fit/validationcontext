@@ -70,3 +70,26 @@ func TestValidateFileSize_WithRealFile(t *testing.T) {
 		t.Fatalf("expected 1 error, got %d", len(vc.Errors()))
 	}
 }
+
+func TestNewValidationContext_WithStackTraceDisabled(t *testing.T) {
+	vc := NewValidationContext(WithStackTrace(false))
+	vc.AddError("Field", "message")
+	if len(vc.Errors()) != 1 {
+		t.Fatalf("expected 1 error, got %d", len(vc.Errors()))
+	}
+	if vc.Errors()[0].StackTrace != "" {
+		t.Fatalf("expected no stack trace, got: %q", vc.Errors()[0].StackTrace)
+	}
+}
+
+func TestValidateContainsRegex_BackwardCompatibility(t *testing.T) {
+	vc := NewValidationContext()
+	vc.ValidateContainsSpecialRegex("abc123", "FieldA", "")
+	vc.ValidateContainsSpecialRegx("abc123", "FieldB", "")
+	vc.ValidateContainsNumberRegex("abcdef", "FieldC", "")
+	vc.ValidateContainsNumberRegx("abcdef", "FieldD", "")
+
+	if len(vc.Errors()) != 4 {
+		t.Fatalf("expected 4 errors, got %d", len(vc.Errors()))
+	}
+}

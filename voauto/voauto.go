@@ -1,6 +1,7 @@
 package voauto
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -10,6 +11,52 @@ import (
 )
 
 type ConstructorFunc func(v any, vc *validationcontext.ValidationContext) any
+
+type BindErrorKind string
+
+const (
+	BindErrorSourceInvalid      BindErrorKind = "source_invalid"
+	BindErrorTargetInvalid      BindErrorKind = "target_invalid"
+	BindErrorInvalidTag         BindErrorKind = "invalid_tag"
+	BindErrorSourceFieldMissing BindErrorKind = "source_field_missing"
+	BindErrorConstructorMissing BindErrorKind = "constructor_missing"
+	BindErrorConstructorPanic   BindErrorKind = "constructor_panic"
+	BindErrorTargetField        BindErrorKind = "target_field"
+	BindErrorResultTypeMismatch BindErrorKind = "result_type_mismatch"
+)
+
+type BindError struct {
+	Kind           BindErrorKind
+	Field          string
+	SourceField    string
+	ConstructorKey string
+	Err            error
+	Message        string
+}
+
+func (e *BindError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return e.Message
+	}
+	if e.Message == "" {
+		return e.Err.Error()
+	}
+	return fmt.Sprintf("%s: %v", e.Message, e.Err)
+}
+
+func (e *BindError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
+func newBindError(kind BindErrorKind, msg string, err error) *BindError {
+	return &BindError{Kind: kind, Message: msg, Err: err}
+}
 
 var (
 	constructors = make(map[string]ConstructorFunc)
@@ -21,6 +68,13 @@ func Register(key string, constructor ConstructorFunc) {
 	mu.Lock()
 	defer mu.Unlock()
 	constructors[key] = constructor
+}
+
+// Reset clears registered constructors.
+func Reset() {
+	mu.Lock()
+	defer mu.Unlock()
+	constructors = make(map[string]ConstructorFunc)
 }
 
 // GetConstructor retrieves a constructor function by key.
@@ -43,7 +97,7 @@ func BindAndValidate[T any](source any) (*T, error) {
 	resultValue := reflect.ValueOf(&result).Elem()
 	resultType := reflect.TypeOf(result)
 	if resultType.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("target type must be struct: %s", resultType.Kind())
+		return nil, newBindError(BindErrorTargetInvalid, fmt.Sprintf("target type must be struct: %s", resultType.Kind()), nil)
 	}
 
 	for i := 0; i < resultType.NumField(); i++ {
@@ -55,16 +109,29 @@ func BindAndValidate[T any](source any) (*T, error) {
 
 		sourceField := sourceValue.FieldByName(sourceFieldName)
 		if !sourceField.IsValid() {
-			return nil, fmt.Errorf("source field not found: %s", sourceFieldName)
+			return nil, &BindError{
+				Kind:        BindErrorSourceFieldMissing,
+				Field:       field.Name,
+				SourceField: sourceFieldName,
+				Message:     fmt.Sprintf("source field not found: %s", sourceFieldName),
+			}
 		}
 
 		constructor := GetConstructor(constructorKey)
 		if constructor == nil {
-			return nil, fmt.Errorf("constructor not found: %s", constructorKey)
+			return nil, &BindError{
+				Kind:           BindErrorConstructorMissing,
+				Field:          field.Name,
+				SourceField:    sourceFieldName,
+				ConstructorKey: constructorKey,
+				Message:        fmt.Sprintf("constructor not found: %s", constructorKey),
+			}
 		}
 
 		resultObj, callErr := callConstructor(constructor, sourceField.Interface(), vc, constructorKey)
 		if callErr != nil {
+			callErr.Field = field.Name
+			callErr.SourceField = sourceFieldName
 			return nil, callErr
 		}
 		if resultObj == nil {
@@ -73,7 +140,13 @@ func BindAndValidate[T any](source any) (*T, error) {
 
 		resultFieldValue := resultValue.Field(i)
 		if !resultFieldValue.CanSet() {
-			return nil, fmt.Errorf("target field cannot be set: %s", field.Name)
+			return nil, &BindError{
+				Kind:           BindErrorTargetField,
+				Field:          field.Name,
+				SourceField:    sourceFieldName,
+				ConstructorKey: constructorKey,
+				Message:        fmt.Sprintf("target field cannot be set: %s", field.Name),
+			}
 		}
 
 		resultObjValue := reflect.ValueOf(resultObj)
@@ -85,7 +158,17 @@ func BindAndValidate[T any](source any) (*T, error) {
 			resultFieldValue.Set(resultObjValue.Convert(resultFieldValue.Type()))
 			continue
 		}
-		return nil, fmt.Errorf("constructor result type mismatch for field %s: got %s, want %s", field.Name, resultObjValue.Type(), resultFieldValue.Type())
+		return nil, &BindError{
+			Kind:           BindErrorResultTypeMismatch,
+			Field:          field.Name,
+			SourceField:    sourceFieldName,
+			ConstructorKey: constructorKey,
+			Message: fmt.Sprintf("constructor result type mismatch for field %s: got %s, want %s",
+				field.Name,
+				resultObjValue.Type(),
+				resultFieldValue.Type(),
+			),
+		}
 	}
 
 	if vc.HasErrors() {
@@ -97,18 +180,18 @@ func BindAndValidate[T any](source any) (*T, error) {
 
 func normalizeSourceValue(source any) (reflect.Value, error) {
 	if source == nil {
-		return reflect.Value{}, fmt.Errorf("source must not be nil")
+		return reflect.Value{}, newBindError(BindErrorSourceInvalid, "source must not be nil", nil)
 	}
 
 	sourceValue := reflect.ValueOf(source)
 	if sourceValue.Kind() == reflect.Ptr {
 		if sourceValue.IsNil() {
-			return reflect.Value{}, fmt.Errorf("source pointer must not be nil")
+			return reflect.Value{}, newBindError(BindErrorSourceInvalid, "source pointer must not be nil", nil)
 		}
 		sourceValue = sourceValue.Elem()
 	}
 	if sourceValue.Kind() != reflect.Struct {
-		return reflect.Value{}, fmt.Errorf("source must be a struct or pointer to struct: %s", sourceValue.Kind())
+		return reflect.Value{}, newBindError(BindErrorSourceInvalid, fmt.Sprintf("source must be a struct or pointer to struct: %s", sourceValue.Kind()), nil)
 	}
 	return sourceValue, nil
 }
@@ -121,10 +204,10 @@ func resolveBindingRule(field reflect.StructField) (constructorKey, sourceFieldN
 
 	constructorKey, sourceFieldName = parseTag(tag, field)
 	if constructorKey == "" {
-		return "", "", fmt.Errorf("invalid vctag for field %s: constructor key is empty", field.Name)
+		return "", "", &BindError{Kind: BindErrorInvalidTag, Field: field.Name, Message: fmt.Sprintf("invalid vctag for field %s: constructor key is empty", field.Name)}
 	}
 	if sourceFieldName == "" {
-		return "", "", fmt.Errorf("invalid vctag for field %s: source field is empty", field.Name)
+		return "", "", &BindError{Kind: BindErrorInvalidTag, Field: field.Name, Message: fmt.Sprintf("invalid vctag for field %s: source field is empty", field.Name)}
 	}
 	if strings.HasPrefix(tag, "auto:") {
 		constructorKey = generateKeyFromType(field.Type, constructorKey)
@@ -132,10 +215,15 @@ func resolveBindingRule(field reflect.StructField) (constructorKey, sourceFieldN
 	return constructorKey, sourceFieldName, nil
 }
 
-func callConstructor(constructor ConstructorFunc, input any, vc *validationcontext.ValidationContext, constructorKey string) (result any, err error) {
+func callConstructor(constructor ConstructorFunc, input any, vc *validationcontext.ValidationContext, constructorKey string) (result any, err *BindError) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("constructor panic: %s: %v", constructorKey, recovered)
+			err = &BindError{
+				Kind:           BindErrorConstructorPanic,
+				ConstructorKey: constructorKey,
+				Message:        fmt.Sprintf("constructor panic: %s", constructorKey),
+				Err:            errors.New(fmt.Sprint(recovered)),
+			}
 		}
 	}()
 	result = constructor(input, vc)
